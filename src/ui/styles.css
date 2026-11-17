@@ -1,0 +1,422 @@
+:root {
+  --color-bg: #15171f;
+  --color-panel: #1f2230;
+  --color-panel-border: #2e3246;
+  --color-text: #e8e9f0;
+  --color-muted: #9a9db0;
+  --color-accent: #f2b84b;
+  --color-accent-text: #1b1406;
+  --color-hp-player: #4caf6a;
+  --color-hp-enemy: #d9534f;
+  --color-hp-track: #34384c;
+  --color-guard: #5aa9e6;
+  --color-intent-attack: #e8655f;
+  --color-intent-guard: #5aa9e6;
+  --color-fired: #ffe066;
+  --color-victory: #4caf6a;
+  --color-defeat: #d9534f;
+  --color-overlay: rgb(0 0 0 / 65%);
+
+  /* Grade colors: common, uncommon, rare, epic (data grade ids 1..4). */
+  --grade-1: #8a8f9e;
+  --grade-2: #4caf6a;
+  --grade-3: #4a8fe0;
+  --grade-4: #a35ee0;
+
+  --radius: 10px;
+  --gap: 16px;
+  --reel-gap: 8px;
+  --cell-size: 96px;
+  --cell-size-narrow: 72px;
+  --reel-spin-duration: 120ms;
+  --hp-transition: 300ms;
+
+  color-scheme: dark;
+  font-family: system-ui, 'Segoe UI', 'Malgun Gothic', sans-serif;
+  color: var(--color-text);
+  background: var(--color-bg);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+.app {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: var(--gap);
+}
+
+.app-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--gap);
+  margin-bottom: var(--gap);
+}
+
+.app-title {
+  margin: 0;
+  font-size: 1.4rem;
+  flex: 1 1 auto;
+}
+
+.seed {
+  color: var(--color-muted);
+  font-size: 0.8rem;
+  font-family: ui-monospace, monospace;
+}
+
+.enemy-selector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.enemy-selector__select {
+  font: inherit;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto minmax(260px, 1.3fr);
+  gap: var(--gap);
+  align-items: start;
+}
+
+.panel {
+  background: var(--color-panel);
+  border: 1px solid var(--color-panel-border);
+  border-radius: var(--radius);
+  padding: var(--gap);
+}
+
+.panel__title {
+  margin: 0 0 8px;
+  font-size: 1rem;
+}
+
+.combatants {
+  display: grid;
+  gap: var(--gap);
+}
+
+.combatant__name {
+  margin: 0 0 8px;
+  font-size: 1.1rem;
+}
+
+.hp-bar {
+  height: 12px;
+  border-radius: 6px;
+  background: var(--color-hp-track);
+  overflow: hidden;
+}
+
+.hp-bar__fill {
+  height: 100%;
+  transition: width var(--hp-transition) ease-out;
+}
+
+.combatant--player .hp-bar__fill {
+  background: var(--color-hp-player);
+}
+
+.combatant--enemy .hp-bar__fill {
+  background: var(--color-hp-enemy);
+}
+
+.combatant__stats {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.combatant__guard {
+  color: var(--color-muted);
+}
+
+.combatant__guard--active {
+  color: var(--color-guard);
+  font-weight: bold;
+}
+
+.intent {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 12px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--color-panel-border);
+}
+
+.intent__label {
+  color: var(--color-muted);
+}
+
+.intent__text {
+  font-weight: bold;
+  font-size: 1.1rem;
+}
+
+.intent[data-intent='attack'] .intent__text {
+  color: var(--color-intent-attack);
+}
+
+.intent[data-intent='guard'] .intent__text {
+  color: var(--color-intent-guard);
+}
+
+.board-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.board {
+  display: flex;
+  gap: var(--reel-gap);
+}
+
+.reel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--reel-gap);
+}
+
+.cell {
+  width: var(--cell-size);
+  height: var(--cell-size);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border-radius: 8px;
+  border: 3px solid var(--cell-grade-color, var(--color-panel-border));
+  background: color-mix(in srgb, var(--cell-grade-color, var(--color-panel)) 22%, var(--color-panel));
+  text-align: center;
+}
+
+.cell.grade-1 {
+  --cell-grade-color: var(--grade-1);
+}
+
+.cell.grade-2 {
+  --cell-grade-color: var(--grade-2);
+}
+
+.cell.grade-3 {
+  --cell-grade-color: var(--grade-3);
+}
+
+.cell.grade-4 {
+  --cell-grade-color: var(--grade-4);
+}
+
+.cell--empty {
+  opacity: 0.5;
+}
+
+.cell--fired {
+  outline: 3px solid var(--color-fired);
+  outline-offset: 2px;
+  box-shadow: 0 0 12px var(--color-fired);
+}
+
+.cell__icon {
+  font-size: 1.8rem;
+  line-height: 1;
+}
+
+.cell__label {
+  font-size: 0.8rem;
+}
+
+.cell__grade {
+  font-size: 0.7rem;
+  color: var(--cell-grade-color, var(--color-muted));
+  font-weight: bold;
+}
+
+.reel--spinning .cell {
+  animation: reel-blur var(--reel-spin-duration) linear infinite;
+}
+
+@keyframes reel-blur {
+  from {
+    transform: translateY(-6px);
+    filter: blur(2px);
+  }
+  to {
+    transform: translateY(6px);
+    filter: blur(2px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reel--spinning .cell {
+    animation: none;
+  }
+
+  .hp-bar__fill {
+    transition: none;
+  }
+}
+
+.board__caption {
+  margin: 0;
+  min-height: 1.4em;
+  color: var(--color-muted);
+  text-align: center;
+  max-width: calc(var(--cell-size) * 3 + var(--reel-gap) * 2);
+}
+
+.button {
+  font: inherit;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 24px;
+  cursor: pointer;
+}
+
+.button--primary {
+  background: var(--color-accent);
+  color: var(--color-accent-text);
+  font-weight: bold;
+}
+
+.button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.spin-button {
+  width: 100%;
+  font-size: 1.2rem;
+}
+
+.log-panel {
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.log {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.log__entry {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--color-bg);
+}
+
+.log__entry--intro {
+  color: var(--color-muted);
+}
+
+.log__title {
+  margin: 0 0 6px;
+  font-size: 0.95rem;
+  color: var(--color-accent);
+}
+
+.log__section {
+  margin-top: 4px;
+}
+
+.log__label {
+  font-size: 0.75rem;
+  color: var(--color-muted);
+}
+
+.log__items {
+  margin: 2px 0 0;
+  padding-left: 18px;
+  font-size: 0.9rem;
+}
+
+.result {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-overlay);
+  padding: var(--gap);
+}
+
+.result[hidden] {
+  display: none;
+}
+
+.result__dialog {
+  background: var(--color-panel);
+  border: 3px solid var(--result-color, var(--color-panel-border));
+  border-radius: var(--radius);
+  padding: 24px 32px;
+  text-align: center;
+  max-width: 420px;
+  width: 100%;
+}
+
+.result[data-phase='victory'] {
+  --result-color: var(--color-victory);
+}
+
+.result[data-phase='defeat'] {
+  --result-color: var(--color-defeat);
+}
+
+.result__icon {
+  font-size: 3rem;
+}
+
+.result__title {
+  margin: 8px 0;
+  color: var(--result-color);
+}
+
+/* Narrow screens: stack panels in play order (enemy/player, board, log). CSS variables cannot be used in media queries. */
+@media (max-width: 760px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+
+  .combatants {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .cell {
+    width: var(--cell-size-narrow);
+    height: var(--cell-size-narrow);
+  }
+
+  .board__caption {
+    max-width: none;
+  }
+
+  .log-panel {
+    max-height: none;
+  }
+}
+
+@media (max-width: 420px) {
+  .combatants {
+    grid-template-columns: 1fr;
+  }
+}

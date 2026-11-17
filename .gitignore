@@ -1,0 +1,15 @@
+node_modules
+dist
+
+# 개인·로컬 설정
+.claude/
+.vscode/
+.idea/
+*.local
+*.local.json
+.env
+.env.*
+*.log
+.DS_Store
+Thumbs.db
+desktop.ini
