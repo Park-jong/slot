@@ -2,13 +2,13 @@
 
 | 항목 | 내용 |
 |---|---|
-| 버전 | v1.0 |
+| 버전 | v1.1 (구현과 동기화: REQ-001) |
 | 날짜 | 2026-11-17 |
 | 대상 독자 | Tech(구현), QA(테스트 케이스 작성) |
-| 상위 문서 | [`docs/game-design.md`](../game-design.md) v0.3 (충돌 시 GDD가 우선, 단 M1 수치는 본 문서가 우선) |
+| 상위 문서 | [`docs/game-design.md`](../game-design.md) v0.4 (충돌 시 GDD가 우선, 단 M1 수치는 본 문서가 우선) |
 | 실행 가능한 기준 | [`tools/sim/combat-sim.mjs`](../../tools/sim/combat-sim.mjs) (규칙·몬테카를로), [`tools/sim/examples.mjs`](../../tools/sim/examples.mjs) (3장 예시 검증) |
 
-> **원칙: 모든 수치(HP, 계수, 배율, 패턴, 릴 구성)는 코드가 아니라 데이터에 둔다.** 코드에는 숫자 리터럴을 박지 않는다. 난수 생성기 `rng(): number`(0 이상 1 미만)는 반드시 주입받는다.
+> **원칙: 모든 수치(HP, 계수, 배율, 패턴, 릴 구성)는 코드가 아니라 데이터에 둔다.** 코드에는 숫자 리터럴을 박지 않는다. 난수 생성기 `rng(): number`(0 이상 1 미만)는 반드시 주입받는다. 주입 지점은 `spin`/`playTurn`뿐이며 `createBattle(config)`는 rng를 받지 않는다.
 > 규칙 해석이 이 문서와 스크립트 사이에서 갈리면 구현하지 말고 설계 담당에게 보고한다.
 
 ---
@@ -55,8 +55,10 @@
 | guard | n>=4 | `guard_keep` 다음 턴까지 방어도 유지 | 보류 (M3) | M1은 배율만 적용 (방어도는 매 턴 0으로 초기화) |
 | shield_bash | n>=2 | `stun` 기절 | 보류 (M3) | M1은 배율만 적용 |
 
-- 데이터에는 `effects: [{ id, minLines, params, deferred: boolean }]`로 전부 기재하고, `deferred: true`인 효과는 실행기가 **무시**한다(오류 아님). `ignore_guard`만 `deferred: false`.
-- 단계별 배율도 데이터: `tiers: [{ lineCount, multiplierNum, effects }]`, 배율은 `multiplierNum / 2`.
+- 데이터(동작 정의 `ActionDef`)에는 효과를 **동작별 평면 목록** `effects: [{ id, minLines, params, deferred: boolean }]`로 전부 기재한다. 효과는 `tiers` 안이 아니라 `tiers` 옆에 있고, 해금 조건은 `minLines`(성립 라인 수 이상)로 표현한다. `deferred: true`인 효과는 실행기가 **무시**한다(오류 아님). `ignore_guard`만 `deferred: false`.
+- 단계 배율도 데이터: `tiers: [{ lineCount, multiplierNum }]`(효과 필드 없음), 배율은 `multiplierNum / 2`. 배열 순서는 무관하며 `selectTier(tiers, n)`은 `lineCount <= n`인 단계 중 `lineCount`가 가장 큰 것을 고른다(상한 초과 라인 수는 마지막 단계로 수렴, 해당 단계가 없으면 오류).
+- `createBattle` 검증: 적 패턴이 비었거나, 동작에 단계가 없거나, `deferred: false`인데 엔진이 구현하지 않은 효과가 있거나, 릴 심볼이 모르는 동작/등급을 쓰면 오류.
+- 동작 배열의 순서가 곧 한 턴 내 해결 순서(방어 -> 방패 강타 -> 공격)다.
 
 ### 1.5 캐릭터
 
@@ -108,26 +110,29 @@
 3. rng 호출 순서는 reel 0의 3회, reel 1의 3회, reel 2의 3회(총 9회). 테스트가 시드 재현에 의존하므로 이 순서를 바꾸지 않는다.
 4. 릴 크기가 3 미만이면 오류(릴 최소 3).
 
-### 2.3 판정 `judge(board) -> JudgeResult` (스핀과 별도 함수. M3 조작 단계가 둘 사이에 들어감)
+### 2.3 판정 `judge(board, grades) -> JudgeResult` (스핀과 별도 함수. M3 조작 단계가 둘 사이에 들어감)
 
 1. 8라인을 위 순서로 검사. 3칸의 `actionId`가 모두 같으면 성립. 등급은 무관.
 2. 성립한 라인의 등급 합 = 3칸 등급 값 합(3~12).
 3. `actionId`별로 묶어 `lineCount`(성립 라인 수)와 `gradeSumTotal`(등급 합의 총합)을 구한다.
-4. 반환: `{ [actionId]: { lineCount, gradeSumTotal } }` (성립한 동작만 포함).
+4. 반환: `{ firedLines, byAction }`.
+   - `firedLines`: 성립 라인 목록(고정 순서 H1..D2). 각 항목 `{ lineId, actionId, gradeSum, cells }`.
+   - `byAction`: `{ [actionId]: { lineCount, gradeSumTotal, lineIds } }` (성립한 동작만 포함).
+5. `grades`는 등급 id -> 등급 값 표(1.1절). 보드에 칸이 없거나 모르는 등급이 있으면 오류. rng는 쓰지 않는다.
 
-### 2.4 위력 계산 `power(basePower, gradeSumTotal, lineCount)`
+### 2.4 위력 계산 `power(basePower, gradeSumTotal, multiplierNum)`
 
 ```
-tierN   = min(lineCount, 4)
-num     = multiplierNum[tierN]            // 2, 3, 4, 6
+num     = selectTier(tiers, lineCount).multiplierNum   // 2, 3, 4, 6 (호출 측이 단계 선택)
 value   = floor( basePower * gradeSumTotal * num / 2 )   // 정수 연산
 ```
 
+- `power`는 `lineCount`가 아니라 **배율 분자(`multiplierNum`)**를 인자로 받는다. 단계 선택(4라인 이상 상한 포함)은 `selectTier`가 데이터의 `tiers`로 수행한다.
 - **floor는 최종값에 한 번만** 적용한다. 라인별로 floor 하지 않는다(라인별 위력을 먼저 합산하지 않고, 등급 합 총합에 배율을 곱한다).
 - 구현은 정수만 사용: `Math.floor(basePower * sum * num / 2)` (또는 `(basePower*sum*num) >> 1`). 부동소수 배율(1.5)을 쓰지 않는다.
 - 분수가 생길 수 있는 경우는 `shield_bash`뿐(기본 계수 1 x 홀수 합 x 1.5). attack/guard는 계수 2라서 항상 정수.
 - `shield_bash`는 `damage = power(1, sum, n)`, `guard = power(1, sum, n)` (같은 값).
-- 공격 `ignoreGuard = (attack.lineCount >= 2)` (효과 데이터에서 읽는다).
+- 공격 `ignoreGuard`는 `deferred: false`이고 `minLines <= lineCount`인 `ignore_guard` 효과가 있을 때 true (M1 데이터에서는 `lineCount >= 2`).
 
 ### 2.5 전투 상태
 
@@ -185,7 +190,8 @@ BattleState {
 - 9칸이 모두 같은 동작이면 라인 8개 성립 가능. 단계는 4로 상한(x3.0).
 - `shield_bash`의 방어도와 `guard`의 방어도는 모두 `playerGuard`에 더해진다.
 - 턴 수 제한 없음. M1에 회복 없음. HP 상한 초과 처리 불필요.
-- 전투 종료(victory/defeat) 후에는 입력(스핀 등)을 잠근다. 종료 상태에서 `turn` 함수 호출은 무시하거나 오류.
+- 전투 종료(victory/defeat) 후에는 입력(스핀 등)을 잠근다. 종료 상태에서 `playTurn`/`resolveTurn` 호출은 **예외를 던진다**.
+- `spin`은 rng가 [0, 1) 밖의 값(NaN 포함)을 반환하면 예외를 던진다.
 - 적이 `attack` 의도일 때 플레이어 방어도가 남아도 이월하지 않는다(다음 턴 시작에 0).
 - 적이 `guard` 의도로 행동하는 턴에는 플레이어 HP 변화 없음.
 
@@ -256,16 +262,22 @@ row2:   G2  S1  A1
 
 ### 예시 5: 적 방어도 수명 (슬라임 1~4턴, 패턴 인덱스 순환)
 
-가정: 플레이어는 1~3턴 빈 턴, 4턴에 방어도 무시 없는 공격 피해 3 하나가 성립. 플레이어 HP 50 시작.
+가정: 플레이어는 1~3턴 빈 턴. 4턴에 방패 강타 S1 x3 가로 한 줄(H1)만 성립하고 나머지 칸은 다른 줄이 생기지 않는 보드. 플레이어 HP 50 시작. `src/core/battle.test.ts`("spec example 5 with M1 data")가 이 시나리오를 고정한다.
+
+보드 예: `row0: S1 S1 S1 / row1: G1 G1 A1 / row2: A1 A1 G1`.
 
 | 턴 | 시작 시 enemyGuard / actionIdx | 표시 의도 | 플레이어 실행 | 적 행동 후 enemyGuard / actionIdx | playerHp | enemyHp |
 |---|---|---|---|---|---|---|
 | 1 | 0 / 0 | attack 5 | 빈 턴 | 0 / 1 | 45 | 24 |
 | 2 | 0 / 1 | attack 5 | 빈 턴 | 0 / 2 | 40 | 24 |
 | 3 | 0 / 2 | guard 5 | 빈 턴 | **5** / 3 | 40 | 24 |
-| 4 | **5** / 3 | attack 5 (`3 % 3 = 0`) | 피해 3 -> 방어도 5 중 3 흡수, enemyGuard 2, HP 변화 없음 | enemyGuard 리셋 0, attack 5 / 4 | 35 | 24 |
+| 4 | **5** / 3 | attack 5 (`3 % 3 = 0`) | 방패 강타: 1라인, 합 3, 피해 `floor(1x3x2/2)=3`, 방어도 3 | 방어도 리셋 0, attack 5 / 4 | 38 | 24 |
+
+4턴 이벤트 순서(고정): (1) 적 피해 3(적 방어도 5 중 3 흡수 -> 2, HP 변화 없음, `enemy_damaged`) -> (2) 플레이어 방어도 +3(`player_guard_gained`) -> (3) 적 방어도 2 소멸(`enemy_guard_expired`) -> (4) 적 공격 5(방어도 3 흡수, HP 2 감소 -> 38, `enemy_attacked`). 같은 동작 안에서 피해가 방어도 획득보다 먼저다.
 
 - 3턴의 방어도 5는 4턴 플레이어 실행 중에만 유효하고, 4턴 적 행동 직전에 사라진다(남은 2도 소멸).
+
+**가상(테스트 전용) 변형**: 이 문서의 이전 판은 "방어도 무시 없는 피해 3 하나, 방어도 획득 없음"을 썼는데, 이는 **M1 데이터로는 도달할 수 없다**(공격 최소 피해 6 = 1라인 x 합 3 x 배율 1, 방패 강타는 방어도도 얻음). 엔진의 방어도 흡수/소멸 규칙만 따로 검증하려면 피해 전용 테스트 동작(`poke`, 계수 피해 1 / 방어도 0)을 주입한다. 이 경우 4턴 결과는 적 방어도 5 -> 2 -> 소멸, 적 공격 5가 방어도 없이 들어가 playerHp 35. 이는 가상 예시이며 M1 제품 데이터가 아니다.
 
 ### 검증 실행
 
@@ -277,7 +289,7 @@ ex2 {"attack":[4,5],"guard":[4]} {"guard":8,"skillDmg":0,"skillGuard":0,"attack"
 ex3 {"guard":[4],"skill":[4],"attack":[3]} {"guard":8,"skillDmg":4,"skillGuard":4,"attack":6,"ignoreGuard":false}
 ```
 
-예시 1~3의 라인 합과 위력이 위 값과 일치. 예시 4, 5는 스크립트가 직접 검증하지 않으므로 손계산 결과이며(예시 4는 `playerOutput` 공식과 동일), Tech가 단위 테스트로 고정한다. 예시 3의 적 방어도 흡수와 적 행동 이후 상태는 `combat-sim.mjs`의 `battle()` 로직과 같은 규칙을 손으로 따라간 값이다.
+예시 1~3의 라인 합과 위력이 위 값과 일치. 예시 4, 5는 스크립트가 직접 검증하지 않으며, Tech가 `src/core/*.test.ts`의 단위 테스트로 고정했다(예시 5는 `battle.test.ts`). 예시 3의 적 방어도 흡수와 적 행동 이후 상태는 `combat-sim.mjs`의 `battle()` 로직과 같은 규칙을 손으로 따라간 값이다.
 
 ---
 
@@ -305,7 +317,7 @@ ex3 {"guard":[4],"skill":[4],"attack":[3]} {"guard":8,"skillDmg":4,"skillGuard":
 - 시뮬레이터는 **플레이어 선택이 없다**(스핀 결과만으로 자동 실행). 조작(M3), 릴 편집(M2) 없음.
 - 승률은 HP 50 시작 기준. 이월 HP 규칙이 생기면 다시 본다.
 - 보스(오우거)는 시뮬레이터 대상 아님.
-- Tech 구현은 위 표와 같은 분포가 나오는지 동일 조건(20만 회)의 회귀 테스트로 확인한다. 허용 오차는 QA가 정한다(제안: 승률 +-1%p).
+- **회귀 테스트 결정 (QA, 확정)**: 기본 테스트 스위트(`npm test`)는 시드 고정 **2만 회**, 허용 오차 승률 **+-1%p**로 슬라임/고블린 승률을 확인한다. 20만 회 확인은 opt-in `npm run test:balance`(허용 오차 동일 +-1%p)이며 **마일스톤 승인 전에 실행**한다.
 
 ---
 
@@ -328,20 +340,24 @@ ex3 {"guard":[4],"skill":[4],"attack":[3]} {"guard":8,"skillDmg":4,"skillGuard":
 | 1 | 시드 고정 rng로 스핀 결과가 재현된다 (호출 순서 2.2절) | 단위 테스트 |
 | 2 | 스핀은 릴 원본 목록을 변경하지 않고, 한 릴에서 같은 인덱스 심볼이 중복 뽑히지 않는다 | 단위 테스트 |
 | 3 | `judge`는 보드만 입력으로 받고 rng를 쓰지 않는다 | 단위 테스트 |
-| 4 | 예시 1~5의 값이 모두 일치 | 단위 테스트 |
+| 4 | 예시 1~5의 값이 모두 일치 (예시 5는 실제 데이터 버전 기준, 가상 변형은 테스트 전용) | 단위 테스트 |
 | 5 | floor가 최종값에 한 번만 적용된다 (예: shield_bash 2라인, 라인 합 3과 3: `floor(1x6x3/2)=9`이며 라인별 floor 합 `4+4=8`과 다름) | 단위 테스트 |
 | 6 | 적 방어도: guard 행동 후 다음 플레이어 턴에만 유효, 적 다음 행동 직전 0 | 예시 5 |
 | 7 | 공격 2라인 이상이면 방어도 무시, 적 방어도 변화 없음 | 예시 2 |
 | 8 | 적 HP 0 이하가 되면 적이 행동하지 않고 승리 | 단위 테스트 |
 | 9 | 빈 턴에 플레이어 행동 없음, 적은 정상 행동 | 단위 테스트 |
-| 10 | 전투 종료 후 입력 잠금 | UI/통합 테스트 |
-| 11 | 모든 수치가 데이터 파일에서 로드된다 (코드에 HP, 계수, 패턴 리터럴 없음) | 코드 리뷰 |
+| 10 | 전투 종료 후 입력 잠금 (`playTurn`/`resolveTurn`은 예외) | 단위/UI 테스트 |
+| 11 | 밸런스 회귀: 기본 2만 회 +-1%p, 승인 전 `npm run test:balance` 20만 회 +-1%p | 4장 |
+| 12 | 모든 수치가 데이터 파일에서 로드된다 (코드에 HP, 계수, 패턴 리터럴 없음) | 코드 리뷰 |
 
 ---
 
 ## 7. 스크립트와의 불일치 (설계 담당 확인용)
 
-1. 스크립트는 스킬 동작 id를 `skill`로 쓴다. 이 명세와 구현은 `shield_bash`. 동작 규칙은 같으므로 숫자 영향 없음.
-2. 스크립트는 배율을 부동소수(1.5)로 곱한 뒤 floor한다. 이 명세는 정수 연산(`num/2`)을 요구한다. 결과는 동일(0.5 단위는 부동소수로 정확히 표현됨).
-3. 스크립트 상단 주석이 이 문서를 구현 대상으로 적고 있으나 스크립트는 `enemyActionIndex` 대신 `(turn-1) % len`을 쓴다. 동작이 모두 매 턴 1회이므로 결과는 같다.
-4. 스크립트는 승리 시 적이 행동하지 않는 것, 적 방어도 소멸 시점을 `eg = 0` 후 행동하는 것으로 이미 이 명세와 같게 구현했다. 그 외 불일치 없음.
+구현(`src/core`)과 이 문서는 일치한다. 아래는 참고용 `tools/sim/*.mjs` 스크립트와의 차이이며 모두 결과에는 영향이 없다. 스크립트는 작성 시점 그대로 두며 기준은 이 문서와 `src/` 구현이다.
+
+1. 스크립트는 스킬 동작 id를 `skill`로 쓴다. 이 명세와 구현은 `shield_bash`. 규칙이 같아 숫자 영향 없음.
+2. 스크립트는 배율을 부동소수(1.5)로 곱한 뒤 floor한다. 이 명세와 구현은 정수 연산(`num/2`). 결과는 동일(0.5 단위는 부동소수로 정확히 표현됨).
+3. 스크립트는 `enemyActionIndex` 대신 `(turn-1) % len`을 쓴다. 매 턴 적이 1회 행동하므로 결과는 같다(구현은 `enemyActionIndex`).
+4. 스크립트의 판정 반환 형식(동작별 라인 합 배열)은 구현의 `{ firedLines, byAction }`과 다르다. 스크립트는 규칙 검증용 참고 구현일 뿐 인터페이스 기준이 아니다.
+5. 스크립트는 승리 시 적이 행동하지 않는 것, 적 방어도 소멸 시점(`eg = 0` 후 행동)을 이 명세와 같게 구현했다. 그 외 규칙 불일치 없음.

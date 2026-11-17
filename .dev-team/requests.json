@@ -9,7 +9,7 @@
     "priority": "P1",
     "priorityReason": "명세가 기준 문서인데 현재 마일스톤(M1) 산출물과 어긋나 있어 M1 안에서 맞춰야 함. 진행을 막지는 않으므로 P0은 아님",
     "milestone": "M1",
-    "status": "open",
+    "status": "done",
     "createdAt": "2026-11-17",
     "history": [
       {
@@ -17,6 +17,22 @@
         "by": "메인 세션",
         "status": "open",
         "note": "우선순위 P1"
+      },
+      {
+        "at": "2026-11-17",
+        "by": "기획 팀장",
+        "status": "accepted"
+      },
+      {
+        "at": "2026-11-17",
+        "by": "기획 팀장",
+        "status": "in_progress"
+      },
+      {
+        "at": "2026-11-17",
+        "by": "기획 팀장",
+        "status": "done",
+        "note": "명세 v1.1 (docs/specs/m1-combat-spec.md)을 구현에 동기화, 예시 5 실제 데이터 버전으로 교체, 밸런스 회귀 결정 기록, 7장 갱신. GDD v0.4 (docs/game-design.md) 5.1 기절 M3 보류 정정. 수치·규칙 변경 없음."
       }
     ]
   },
