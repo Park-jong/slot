@@ -1,5 +1,5 @@
 import { GRID_SIZE } from './lines';
-import type { Rng } from './rng';
+import { drawUnit, type Rng } from './rng';
 import type { Board, Reel, ReelSymbol } from './types';
 
 /**
@@ -26,11 +26,3 @@ function drawColumn(reel: Reel, reelIndex: number, rng: Rng): ReelSymbol[] {
   return column;
 }
 
-/** Rejects out-of-contract rng values; NaN fails both comparisons, so it is rejected too. */
-function drawUnit(rng: Rng): number {
-  const value = rng();
-  if (!(value >= 0 && value < 1)) {
-    throw new Error(`spin: rng returned ${value}, expected a value in [0, 1)`);
-  }
-  return value;
-}

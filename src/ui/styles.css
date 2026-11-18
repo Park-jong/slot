@@ -12,10 +12,10 @@
   --color-guard: #5aa9e6;
   --color-intent-attack: #e8655f;
   --color-intent-guard: #5aa9e6;
+  --color-intent-charge: #f28c38;
   --color-fired: #ffe066;
   --color-victory: #4caf6a;
   --color-defeat: #d9534f;
-  --color-overlay: rgb(0 0 0 / 65%);
 
   /* Grade colors: common, uncommon, rare, epic (data grade ids 1..4). */
   --grade-1: #8a8f9e;
@@ -71,18 +71,6 @@ body {
   font-family: ui-monospace, monospace;
 }
 
-.enemy-selector {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.enemy-selector__select {
-  font: inherit;
-  padding: 4px 8px;
-  border-radius: 6px;
-}
-
 .layout {
   display: grid;
   grid-template-columns: minmax(220px, 1fr) auto minmax(260px, 1.3fr);
@@ -124,11 +112,11 @@ body {
   transition: width var(--hp-transition) ease-out;
 }
 
-.combatant--player .hp-bar__fill {
+.hp-bar--player .hp-bar__fill {
   background: var(--color-hp-player);
 }
 
-.combatant--enemy .hp-bar__fill {
+.hp-bar--enemy .hp-bar__fill {
   background: var(--color-hp-enemy);
 }
 
@@ -350,38 +338,6 @@ body {
   font-size: 0.9rem;
 }
 
-.result {
-  position: fixed;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--color-overlay);
-  padding: var(--gap);
-}
-
-.result[hidden] {
-  display: none;
-}
-
-.result__dialog {
-  background: var(--color-panel);
-  border: 3px solid var(--result-color, var(--color-panel-border));
-  border-radius: var(--radius);
-  padding: 24px 32px;
-  text-align: center;
-  max-width: 420px;
-  width: 100%;
-}
-
-.result[data-phase='victory'] {
-  --result-color: var(--color-victory);
-}
-
-.result[data-phase='defeat'] {
-  --result-color: var(--color-defeat);
-}
-
 .result__icon {
   font-size: 3rem;
 }
@@ -389,6 +345,292 @@ body {
 .result__title {
   margin: 8px 0;
   color: var(--result-color);
+}
+
+.intent[data-intent='charge'] .intent__text,
+.intent--charged .intent__text {
+  color: var(--color-intent-charge);
+}
+
+/* Run header: progress, stage track, carried HP, latest outcome. */
+.run-header {
+  display: grid;
+  gap: 8px;
+}
+
+.run-header__title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--gap);
+}
+
+.run-header__progress {
+  margin: 0;
+  font-weight: bold;
+  color: var(--color-accent);
+}
+
+.run-header__hp {
+  display: grid;
+  grid-template-columns: minmax(160px, 360px) auto;
+  align-items: center;
+  gap: 12px;
+}
+
+.run-header__recent {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.9rem;
+}
+
+.stage-track {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stage-track__stage {
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--color-panel-border);
+  color: var(--color-muted);
+  font-size: 0.85rem;
+}
+
+.stage-track__stage--cleared {
+  color: var(--color-victory);
+  border-color: var(--color-victory);
+}
+
+.stage-track__stage--current {
+  color: var(--color-accent-text);
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  font-weight: bold;
+}
+
+.stage-track__stage--lost {
+  color: var(--color-defeat);
+  border-color: var(--color-defeat);
+}
+
+.stage-track__stage--boss {
+  border-width: 2px;
+}
+
+/* Reel composition (reward, edit, end screens and the battle side panel). */
+.reels {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.reels__title {
+  margin: 0 0 4px;
+  font-size: 0.9rem;
+  color: var(--color-muted);
+}
+
+.reels__symbols {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 2px;
+  font-size: 0.85rem;
+}
+
+.reels__symbol {
+  border-left: 3px solid var(--cell-grade-color, var(--color-panel-border));
+  padding-left: 6px;
+}
+
+.reels__symbol.grade-1 {
+  --cell-grade-color: var(--grade-1);
+}
+
+.reels__symbol.grade-2 {
+  --cell-grade-color: var(--grade-2);
+}
+
+.reels__symbol.grade-3 {
+  --cell-grade-color: var(--grade-3);
+}
+
+.reels__symbol.grade-4 {
+  --cell-grade-color: var(--grade-4);
+}
+
+.reels-panel summary {
+  cursor: pointer;
+}
+
+/* End-of-battle panel on the battle screen. */
+.outcome {
+  width: 100%;
+  padding: 12px;
+  border-radius: 8px;
+  border: 2px solid var(--result-color, var(--color-panel-border));
+  display: grid;
+  gap: 6px;
+}
+
+.outcome[hidden] {
+  display: none;
+}
+
+.outcome[data-phase='victory'],
+.run-end[data-phase='victory'] {
+  --result-color: var(--color-victory);
+}
+
+.outcome[data-phase='defeat'],
+.run-end[data-phase='defeat'] {
+  --result-color: var(--color-defeat);
+}
+
+.outcome__title {
+  margin: 0;
+  color: var(--result-color);
+}
+
+.outcome__summary,
+.outcome__lines {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.outcome__lines {
+  padding-left: 18px;
+}
+
+/* Reward, edit and run end screens. Delta colors show direction only: more is not always better (empty turns). */
+.screen {
+  display: grid;
+  gap: var(--gap);
+}
+
+.screen[hidden],
+.layout[hidden] {
+  display: none;
+}
+
+.screen__hint {
+  margin: 0 0 12px;
+  color: var(--color-muted);
+}
+
+.screen__secondary {
+  background: var(--color-hp-track);
+  color: var(--color-text);
+}
+
+.offer__title {
+  margin: 0 0 12px;
+  font-size: 1.1rem;
+}
+
+.candidates,
+.reel-columns {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+
+.reel-columns__reel {
+  display: grid;
+  gap: 8px;
+}
+
+.candidate {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 8px;
+  background: var(--color-bg);
+}
+
+.candidate--disabled {
+  opacity: 0.6;
+}
+
+.candidate__title {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.candidate__button {
+  padding: 6px 12px;
+}
+
+.candidate__reason {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.85rem;
+}
+
+.stats {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.stats th,
+.stats td {
+  padding: 2px 4px;
+  text-align: right;
+}
+
+.stats thead th {
+  color: var(--color-muted);
+  font-weight: normal;
+}
+
+.stats .stats__label {
+  text-align: left;
+  font-weight: normal;
+}
+
+.stats__row--secondary .stats__label {
+  padding-left: 14px;
+  color: var(--color-muted);
+}
+
+.stats__row--impossible .stats__after {
+  color: var(--color-defeat);
+  font-weight: bold;
+}
+
+.stats__badge {
+  margin-left: 4px;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: var(--color-defeat);
+  color: var(--color-text);
+  font-size: 0.7rem;
+}
+
+.stats__delta--up {
+  color: var(--color-accent);
+}
+
+.stats__delta--down {
+  color: var(--color-guard);
+}
+
+.stats__delta--same {
+  color: var(--color-muted);
+}
+
+.run-end {
+  text-align: center;
+  border: 3px solid var(--result-color, var(--color-panel-border));
 }
 
 /* Narrow screens: stack panels in play order (enemy/player, board, log). CSS variables cannot be used in media queries. */
@@ -412,6 +654,11 @@ body {
 
   .log-panel {
     max-height: none;
+  }
+
+  .candidates,
+  .reel-columns {
+    grid-template-columns: 1fr;
   }
 }
 

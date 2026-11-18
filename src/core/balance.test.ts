@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BALANCE_SEED, simulateWinRate, specWinRateEntries } from './balance-sim';
+import { BALANCE_SEED, simulateWinRate, specWinRateEntries } from '../test-support/balance-sim';
 
 // Quick seeded regression against spec section 4. The full 200k-run check is `npm run test:balance`.
 const RUNS = 20_000;

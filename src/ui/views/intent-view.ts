@@ -1,7 +1,7 @@
-import type { Intent } from '../../core';
+import type { IntentPreview } from '../../core';
 import { createElement } from '../dom';
-import { formatIntent } from '../format';
-import { INTENT_ICONS } from '../ui-config';
+import { formatIntentPreview } from '../format';
+import { INTENT_ICONS, LABELS } from '../ui-config';
 
 /** The enemy's next action, always visible before spinning (GDD: intent is always shown). */
 export class IntentView {
@@ -9,11 +9,12 @@ export class IntentView {
   private readonly text = createElement('span', 'intent__text');
 
   constructor() {
-    this.element.append(createElement('span', 'intent__label', '다음 행동'), this.text);
+    this.element.append(createElement('span', 'intent__label', LABELS.intent), this.text);
   }
 
-  show(intent: Intent | null): void {
-    this.element.dataset['intent'] = intent?.type ?? 'none';
-    this.text.textContent = intent ? `${INTENT_ICONS[intent.type]} ${formatIntent(intent)}` : '-';
+  show(preview: IntentPreview | null): void {
+    this.element.dataset['intent'] = preview?.type ?? 'none';
+    this.element.classList.toggle('intent--charged', preview?.charged ?? false);
+    this.text.textContent = preview ? `${INTENT_ICONS[preview.type]} ${formatIntentPreview(preview)}` : '-';
   }
 }

@@ -12,7 +12,6 @@ export interface FiredLine {
 export interface ActionJudgement {
   readonly lineCount: number;
   readonly gradeSumTotal: number;
-  readonly lineIds: readonly LineId[];
 }
 
 export interface JudgeResult {
@@ -48,7 +47,6 @@ function groupByAction(firedLines: readonly FiredLine[]): Record<ActionId, Actio
     byAction[line.actionId] = {
       lineCount: (previous?.lineCount ?? 0) + 1,
       gradeSumTotal: (previous?.gradeSumTotal ?? 0) + line.gradeSum,
-      lineIds: [...(previous?.lineIds ?? []), line.lineId],
     };
   }
   return byAction;

@@ -1,9 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { ACTIONS, GRADES, STANDARD_TIERS } from '../data';
-import { evaluateOutcomes } from './battle';
 import { judge } from './judge';
-import { activeEffects, evaluateAction, power, selectTier } from './outcome';
-import { boardFromRows } from './test-helpers';
+import { evaluateAction, evaluateOutcomes, power, selectTier } from './outcome';
+import { boardFromRows } from '../test-support/test-helpers';
 import type { ActionDef } from './types';
 
 function action(id: string): ActionDef {
@@ -50,12 +49,20 @@ describe('power and tiers', () => {
   });
 });
 
-describe('effects', () => {
-  it('ignore_guard needs 2+ attack lines; deferred effects are never active', () => {
-    expect(activeEffects(action('attack'), 1)).toEqual([]);
-    expect(activeEffects(action('attack'), 4).map((effect) => effect.id)).toEqual(['ignore_guard']);
-    expect(activeEffects(action('guard'), 4)).toEqual([]);
-    expect(activeEffects(action('shield_bash'), 3)).toEqual([]);
+describe('executed effects', () => {
+  it('ignore_guard needs 2+ attack lines; deferred effects never change the outcome', () => {
+    expect(evaluateAction(action('attack'), { lineCount: 1, gradeSumTotal: 3 }).ignoreGuard).toBe(false);
+    expect(evaluateAction(action('attack'), { lineCount: 2, gradeSumTotal: 6 }).ignoreGuard).toBe(true);
+    expect(evaluateAction(action('guard'), { lineCount: 4, gradeSumTotal: 12 })).toMatchObject({ guard: 72, damage: 0, ignoreGuard: false });
+  });
+});
+
+describe('M2 example 3: enhanced shield_bash line', () => {
+  it('S1 S1 S2 (grade sum 4) gives damage 4 and guard 4; S1 S1 S1 gives 3 / 3', () => {
+    const [enhanced] = outcomesFor(['S1 S1 S2', 'A1 G1 A1', 'G1 A1 G1']);
+    expect(enhanced).toMatchObject({ actionId: 'shield_bash', lineCount: 1, gradeSumTotal: 4, damage: 4, guard: 4 });
+    const [plain] = outcomesFor(['S1 S1 S1', 'A1 G1 A1', 'G1 A1 G1']);
+    expect(plain).toMatchObject({ gradeSumTotal: 3, damage: 3, guard: 3 });
   });
 });
 

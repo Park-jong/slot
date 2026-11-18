@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { ACTIONS, createM1BattleConfig, GRADES } from '../data';
+import { ACTIONS, createStartingBattleConfig, GRADES } from '../data';
 import { createBattle, createBattleFromState, resolveTurn, type Battle } from './battle';
 import { judge } from './judge';
 import { evaluateAction } from './outcome';
-import { boardFromRows, EMPTY_BOARD } from './test-helpers';
+import { boardFromRows, EMPTY_BOARD } from '../test-support/test-helpers';
 import type { BattleConfig, BattleState, EnemyDef } from './types';
 
-const SLIME = createM1BattleConfig('slime');
+const SLIME = createStartingBattleConfig('slime');
 
 const MAX_LINES = 8;
 const MIN_LINE_GRADE_SUM = 3;

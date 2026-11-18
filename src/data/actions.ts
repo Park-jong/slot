@@ -1,3 +1,4 @@
+import { EFFECT_IGNORE_GUARD } from '../core/effects';
 import type { ActionDef } from '../core/types';
 import { STANDARD_TIERS } from './tiers';
 
@@ -10,6 +11,7 @@ const GUARD: ActionDef = {
   name: '방어',
   basePower: { damage: 0, guard: 2 },
   tiers: STANDARD_TIERS,
+  // Same-id stages replace each other (M2 spec 6): 3+ lines reflect 50%, not 30% + 50%.
   effects: [
     { id: 'reflect', minLines: 2, params: { percent: 30 }, deferred: true },
     { id: 'reflect', minLines: 3, params: { percent: 50 }, deferred: true },
@@ -31,7 +33,7 @@ const ATTACK: ActionDef = {
   basePower: { damage: 2, guard: 0 },
   tiers: STANDARD_TIERS,
   effects: [
-    { id: 'ignore_guard', minLines: 2, params: {}, deferred: false },
+    { id: EFFECT_IGNORE_GUARD, minLines: 2, params: {}, deferred: false },
     { id: 'weaken', minLines: 3, params: {}, deferred: true },
     { id: 'double_hit', minLines: 4, params: {}, deferred: true },
   ],

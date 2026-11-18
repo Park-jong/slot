@@ -1,10 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import { createBattle, createBattleFromState, resolveTurn, type BattleEvent } from '../core';
-import { boardFromRows, EMPTY_BOARD } from '../core/test-helpers';
-import { ACTION_ATTACK, ACTION_SHIELD_BASH, createM1BattleConfig } from '../data';
-import { displayHp, formatBattleResult, formatEvent, formatIntent, formatMultiplier, formatTurn } from './format';
+import { createBattle, createBattleFromState, currentIntentPreview, resolveTurn, type BattleEvent, type BattleState } from '../core';
+import { boardFromRows, EMPTY_BOARD } from '../test-support/test-helpers';
+import { ACTION_ATTACK, ACTION_SHIELD_BASH, createStartingBattleConfig } from '../data';
+import {
+  displayHp,
+  formatBattleResult,
+  formatBattleStart,
+  formatEvent,
+  formatIntentPreview,
+  formatMultiplier,
+  formatTurn,
+} from './format';
 
-const slimeConfig = createM1BattleConfig('slime');
+const slimeConfig = createStartingBattleConfig('slime');
+const ogreConfig = createStartingBattleConfig('ogre');
 const TOP_ROW_ATTACK_BOARD = boardFromRows(['A1 A1 A1', 'G1 S1 G1', 'S1 G1 S1']);
 
 describe('formatEvent', () => {
@@ -41,8 +50,9 @@ describe('formatEvent', () => {
       { type: 'player_guard_expired', amount: 3 },
       { type: 'player_guard_gained', actionId: ACTION_SHIELD_BASH, amount: 3, playerGuard: 3 },
       { type: 'enemy_guard_expired', amount: 5 },
-      { type: 'enemy_attacked', value: 5, absorbed: 3, hpLoss: 2, playerHp: 48, playerGuard: 0 },
+      { type: 'enemy_attacked', value: 5, baseValue: 5, absorbed: 3, hpLoss: 2, playerHp: 48, playerGuard: 0 },
       { type: 'enemy_guarded', value: 5, enemyGuard: 5 },
+      { type: 'enemy_charged', multiplier: 2 },
       { type: 'victory' },
       { type: 'defeat' },
     ];
@@ -52,6 +62,7 @@ describe('formatEvent', () => {
       '슬라임의 방어도 5 소멸',
       '슬라임의 공격 5 피해: 방어도가 3 흡수, HP -2 (내 HP 48, 방어도 0)',
       '슬라임 방어 태세: 방어도 5',
+      '슬라임 힘 모으기: 다음 공격 x2',
       '슬라임 쓰러짐 - 승리!',
       '견습 기사 쓰러짐 - 패배',
     ]);
@@ -96,6 +107,7 @@ describe('formatBattleResult', () => {
       enemyHp: 1,
       enemyGuard: 0,
       enemyActionIndex: 3,
+      enemyChargeMult: 1,
       phase: 'ongoing',
     });
     const { battle } = resolveTurn(nearlyDead, TOP_ROW_ATTACK_BOARD);
@@ -109,9 +121,43 @@ describe('formatBattleResult', () => {
 
 describe('small formatters', () => {
   it('formats intents, multipliers and display HP', () => {
-    expect(formatIntent({ type: 'guard', value: 5 })).toBe('방어 5');
     expect(formatMultiplier(3)).toBe('x1.5');
     expect(displayHp(-4)).toBe(0);
     expect(displayHp(7)).toBe(7);
+  });
+});
+
+/** Ogre (pattern: attack 10, charge x2, attack 10, guard 10) at a given point of its pattern. */
+function ogreAt(overrides: Partial<BattleState>) {
+  const start = createBattle(ogreConfig);
+  return createBattleFromState(ogreConfig, { ...start.state, ...overrides });
+}
+
+describe('formatIntentPreview (M2 spec 7.2, example 4)', () => {
+  it('shows plain attack and guard intents with their value', () => {
+    expect(formatIntentPreview(currentIntentPreview(ogreAt({ enemyActionIndex: 0 })))).toBe('공격 10');
+    expect(formatIntentPreview(currentIntentPreview(ogreAt({ enemyActionIndex: 3 })))).toBe('방어 10');
+  });
+
+  it('on a charge turn shows the multiplier and the boosted next intent', () => {
+    const preview = currentIntentPreview(ogreAt({ enemyActionIndex: 1 }));
+    expect(formatIntentPreview(preview)).toBe('힘 모으기 — 다음 공격 x2 (다음: 공격 20)');
+  });
+
+  it('on the following turn marks the attack as boosted and keeps the base value', () => {
+    const preview = currentIntentPreview(ogreAt({ enemyActionIndex: 2, enemyChargeMult: 2 }));
+    expect(formatIntentPreview(preview)).toBe('공격 20 (강화됨 · 기본 10)');
+  });
+
+  it('titles a turn with the effective intent the enemy used', () => {
+    const { report } = resolveTurn(ogreAt({ enemyActionIndex: 2, enemyChargeMult: 2 }), EMPTY_BOARD);
+    expect(formatTurn(report, ogreConfig).title).toBe('턴 1 · 적 의도 공격 20 (강화됨 · 기본 10)');
+  });
+});
+
+describe('formatBattleStart', () => {
+  it('shows the carried-over starting HP against the maximum', () => {
+    const battle = createBattle({ ...slimeConfig, startingHp: 44 });
+    expect(formatBattleStart(battle)).toBe('전투 시작: 견습 기사 (HP 44/50) vs 슬라임 (HP 24)');
   });
 });

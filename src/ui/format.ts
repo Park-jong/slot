@@ -1,24 +1,39 @@
 // Pure text formatting of engine output. Every number shown here comes from the engine's report;
 // nothing is recomputed, only described.
 import {
+  currentIntentPreview,
   MULTIPLIER_DENOMINATOR,
+  type ActionDef,
   type ActionId,
   type ActionOutcome,
   type Battle,
   type BattleConfig,
   type BattleEvent,
-  type BattlePhase,
+  type EndPhase,
   type FiredLine,
   type GradeId,
-  type Intent,
+  type GradeTable,
+  type IntentPreview,
   type IntentType,
   type TurnReport,
 } from '../core';
+import { ACTION_ICONS, FALLBACK_ACTION_ICON } from './ui-config';
 
 const INTENT_LABELS: Readonly<Record<IntentType, string>> = {
   attack: '공격',
   guard: '방어',
+  charge: '힘 모으기',
 };
+
+/** Anything that names actions: a BattleConfig or a RunDefinition. */
+export interface ActionNames {
+  readonly actions: readonly ActionDef[];
+}
+
+/** Anything that names grades: a BattleConfig or a RunDefinition. */
+export interface GradeNames {
+  readonly grades: GradeTable;
+}
 
 export interface LogSection {
   readonly label: string;
@@ -35,16 +50,35 @@ export function displayHp(hp: number): number {
   return Math.max(0, hp);
 }
 
-export function actionName(config: BattleConfig, actionId: ActionId): string {
-  return config.actions.find((action) => action.id === actionId)?.name ?? actionId;
+export function actionName(names: ActionNames, actionId: ActionId): string {
+  return names.actions.find((action) => action.id === actionId)?.name ?? actionId;
 }
 
-export function gradeName(config: BattleConfig, gradeId: GradeId): string {
-  return config.grades[gradeId]?.name ?? String(gradeId);
+export function gradeName(names: GradeNames, gradeId: GradeId): string {
+  return names.grades[gradeId]?.name ?? String(gradeId);
 }
 
-export function formatIntent(intent: Intent): string {
-  return `${INTENT_LABELS[intent.type]} ${intent.value}`;
+export function actionIcon(actionId: ActionId): string {
+  return ACTION_ICONS[actionId] ?? FALLBACK_ACTION_ICON;
+}
+
+function intentText(preview: IntentPreview): string {
+  return `${INTENT_LABELS[preview.type]} ${preview.value}`;
+}
+
+// One entry per intent type (M2 spec 7.2); the mapped type makes a missing entry a compile error.
+const INTENT_PREVIEW_FORMATTERS: { readonly [T in IntentType]: (preview: IntentPreview) => string } = {
+  attack: (preview) =>
+    preview.charged ? `${intentText(preview)} (강화됨 · 기본 ${preview.baseValue})` : intentText(preview),
+  guard: intentText,
+  charge: (preview) => {
+    const next = preview.next ? ` (다음: ${intentText(preview.next)})` : '';
+    return `${INTENT_LABELS.charge} — 다음 공격 x${preview.value}${next}`;
+  },
+};
+
+export function formatIntentPreview(preview: IntentPreview): string {
+  return INTENT_PREVIEW_FORMATTERS[preview.type](preview);
 }
 
 export function formatFiredLine(line: FiredLine, config: BattleConfig): string {
@@ -97,6 +131,7 @@ const EVENT_FORMATTERS: { readonly [T in EventType]: EventFormatter<T> } = {
     `${config.enemy.name}의 공격 ${describeHit(event.value, event.absorbed, event.hpLoss)} ` +
     `(내 HP ${displayHp(event.playerHp)}, 방어도 ${event.playerGuard})`,
   enemy_guarded: (event, config) => `${config.enemy.name} 방어 태세: 방어도 ${event.enemyGuard}`,
+  enemy_charged: (event, config) => `${config.enemy.name} 힘 모으기: 다음 공격 x${event.multiplier}`,
   victory: (_event, config) => `${config.enemy.name} 쓰러짐 - 승리!`,
   defeat: (_event, config) => `${config.character.name} 쓰러짐 - 패배`,
 };
@@ -118,19 +153,24 @@ export function formatTurn(report: TurnReport, config: BattleConfig): TurnLog {
     { label: '계산', items: report.outcomes.map((outcome) => formatOutcome(outcome, config)) },
     { label: '진행', items: report.events.map((event) => formatEvent(event, config)) },
   ];
+  // The preview of the turn's starting state shows the charged value the enemy actually used.
+  const intent = currentIntentPreview({ config, state: report.before });
   return {
-    title: `턴 ${report.turn} · 적 의도 ${formatIntent(report.intent)}`,
+    title: `턴 ${report.turn} · 적 의도 ${formatIntentPreview(intent)}`,
     sections: sections.filter((section) => section.items.length > 0),
   };
 }
 
-export function formatBattleStart(config: BattleConfig): string {
-  return `전투 시작: ${config.character.name} (HP ${config.character.maxHp}) vs ${config.enemy.name} (HP ${config.enemy.hp})`;
+/** Uses the battle's starting HP, which is carried over between run battles. */
+export function formatBattleStart(battle: Battle): string {
+  const { config, state } = battle;
+  return (
+    `전투 시작: ${config.character.name} (HP ${state.playerHp}/${config.character.maxHp}) ` +
+    `vs ${config.enemy.name} (HP ${config.enemy.hp})`
+  );
 }
 
 const RESULT_TITLES = { victory: '승리!', defeat: '패배' } as const;
-
-export type EndPhase = Exclude<BattlePhase, 'ongoing'>;
 
 export interface BattleResultText {
   readonly phase: EndPhase;

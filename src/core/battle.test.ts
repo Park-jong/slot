@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ACTIONS, createM1BattleConfig, STANDARD_TIERS } from '../data';
+import { ACTIONS, createStartingBattleConfig, STANDARD_TIERS } from '../data';
 import {
   createBattle,
   createBattleFromState,
@@ -11,17 +11,19 @@ import {
 } from './battle';
 import { createRng } from './rng';
 import { spin } from './spin';
-import { boardFromRows, EMPTY_BOARD, TEST_ACTION_POKE } from './test-helpers';
+import {
+  boardFromRows,
+  EMPTY_BOARD,
+  SINGLE_ATTACK_BOARD,
+  SINGLE_GUARD_BOARD,
+  TEST_ACTION_POKE,
+} from '../test-support/test-helpers';
 import type { ActionDef, BattleConfig, BattleState, Board } from './types';
 
-const SLIME = createM1BattleConfig('slime');
-const GOBLIN = createM1BattleConfig('goblin');
+const SLIME = createStartingBattleConfig('slime');
+const GOBLIN = createStartingBattleConfig('goblin');
 
 const EXAMPLE_3_BOARD = boardFromRows(['G1 S1 A1', 'G1 S2 A1', 'G2 S1 A1']);
-/** Only H1 fires: one attack line, grade sum 3 -> 6 damage. */
-const SINGLE_ATTACK_BOARD = boardFromRows(['A1 A1 A1', 'G1 G1 A1', 'A1 A1 G1']);
-/** Only H1 fires: one guard line, grade sum 3 -> 6 guard. */
-const SINGLE_GUARD_BOARD = boardFromRows(['G1 G1 G1', 'A1 S1 A1', 'S1 A1 S1']);
 const FULL_ATTACK_BOARD = boardFromRows(['A1 A1 A1', 'A1 A1 A1', 'A1 A1 A1']);
 
 function stateOf(config: BattleConfig, overrides: Partial<BattleState>): Battle {
@@ -54,9 +56,33 @@ describe('createBattle', () => {
       enemyHp: 24,
       enemyGuard: 0,
       enemyActionIndex: 0,
+      enemyChargeMult: 1,
       phase: 'ongoing',
     });
     expect(currentIntent(createBattle(GOBLIN))).toEqual({ type: 'attack', value: 5 });
+  });
+
+  it('starts from startingHp when given (HP carried over in a run)', () => {
+    expect(createBattle({ ...SLIME, startingHp: 36 }).state.playerHp).toBe(36);
+  });
+
+  it.each([0, -1, 51, 2.5])('rejects startingHp %s outside 1..maxHp', (startingHp) => {
+    expect(() => createBattle({ ...SLIME, startingHp })).toThrow(/startingHp/);
+  });
+
+  it('rejects a reel count other than the grid size', () => {
+    const reels = SLIME.reels.slice(0, 2);
+    expect(() => createBattle({ ...SLIME, reels })).toThrow(/expected 3 reels/);
+  });
+
+  it('rejects a character whose skill action is not defined', () => {
+    const character = { ...SLIME.character, skillActionId: 'fireball' };
+    expect(() => createBattle({ ...SLIME, character })).toThrow(/skill action fireball/);
+  });
+
+  it('rejects a charge multiplier below 2', () => {
+    const enemy = { ...SLIME.enemy, pattern: [{ type: 'charge', value: 1 }] } as const;
+    expect(() => createBattle({ ...SLIME, enemy })).toThrow(/charge multiplier 1/);
   });
 
   it('rejects non-deferred effects the engine does not implement', () => {
@@ -106,7 +132,7 @@ describe('spec example 3: guard + shield_bash + attack on slime turn 4', () => {
         enemyHp: 19,
         enemyGuard: 0,
       },
-      { type: 'enemy_attacked', value: 5, absorbed: 5, hpLoss: 0, playerHp: 50, playerGuard: 7 },
+      { type: 'enemy_attacked', value: 5, baseValue: 5, absorbed: 5, hpLoss: 0, playerHp: 50, playerGuard: 7 },
     ]);
   });
 
@@ -118,6 +144,7 @@ describe('spec example 3: guard + shield_bash + attack on slime turn 4', () => {
       enemyHp: 19,
       enemyGuard: 0,
       enemyActionIndex: 4,
+      enemyChargeMult: 1,
       phase: 'ongoing',
     });
     expect(report.before).toBe(start.state);
@@ -190,7 +217,7 @@ describe('spec example 5: enemy guard lifetime on slime turns 1-4', () => {
         enemyGuard: 2,
       },
       { type: 'enemy_guard_expired', amount: 2 },
-      { type: 'enemy_attacked', value: 5, absorbed: 0, hpLoss: 5, playerHp: 35, playerGuard: 0 },
+      { type: 'enemy_attacked', value: 5, baseValue: 5, absorbed: 0, hpLoss: 5, playerHp: 35, playerGuard: 0 },
     ]);
   });
 });
@@ -220,7 +247,7 @@ describe('spec example 5 with M1 data: shield_bash S1x3 on slime turn 4', () => 
       },
       { type: 'player_guard_gained', actionId: 'shield_bash', amount: 3, playerGuard: 3 },
       { type: 'enemy_guard_expired', amount: 2 },
-      { type: 'enemy_attacked', value: 5, absorbed: 3, hpLoss: 2, playerHp: 38, playerGuard: 0 },
+      { type: 'enemy_attacked', value: 5, baseValue: 5, absorbed: 3, hpLoss: 2, playerHp: 38, playerGuard: 0 },
     ]);
     expect(turn4?.after).toMatchObject({ turn: 5, playerHp: 38, enemyHp: 24, enemyGuard: 0, enemyActionIndex: 4 });
   });
@@ -234,7 +261,7 @@ describe('player guard lifetime', () => {
     expect(nextTurn?.report.events).toEqual([
       { type: 'player_guard_expired', amount: 6 },
       { type: 'enemy_guard_expired', amount: 5 },
-      { type: 'enemy_attacked', value: 5, absorbed: 0, hpLoss: 5, playerHp: 45, playerGuard: 0 },
+      { type: 'enemy_attacked', value: 5, baseValue: 5, absorbed: 0, hpLoss: 5, playerHp: 45, playerGuard: 0 },
     ]);
   });
 });
@@ -266,7 +293,7 @@ describe('turn edge cases', () => {
     expect(report.judgement.firedLines).toEqual([]);
     expect(report.outcomes).toEqual([]);
     expect(report.events).toEqual([
-      { type: 'enemy_attacked', value: 5, absorbed: 0, hpLoss: 5, playerHp: 45, playerGuard: 0 },
+      { type: 'enemy_attacked', value: 5, baseValue: 5, absorbed: 0, hpLoss: 5, playerHp: 45, playerGuard: 0 },
     ]);
     expect(battle.state).toMatchObject({ turn: 2, enemyHp: 24, enemyActionIndex: 1 });
   });
@@ -320,7 +347,7 @@ describe('playTurn', () => {
   });
 
   it('never mutates the input battle', () => {
-    const battle = deepFreeze(createBattle(createM1BattleConfig('slime')));
+    const battle = deepFreeze(createBattle(createStartingBattleConfig('slime')));
     const snapshot = structuredClone(battle.state);
     const rng = createRng(5);
     let current = battle;

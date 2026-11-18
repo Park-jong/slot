@@ -1,21 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { APPRENTICE_KNIGHT } from '../data';
-import { createRng, type Rng } from './rng';
+import { scriptedRng } from '../test-support/test-helpers';
+import { createRng } from './rng';
 import { spin } from './spin';
 import type { Reel, ReelSymbol } from './types';
 
 const DISTINCT_REEL: Reel = Array.from({ length: 6 }, (_, index) => ({ actionId: `s${index}`, grade: 1 }));
 const DISTINCT_REELS = [DISTINCT_REEL, DISTINCT_REEL, DISTINCT_REEL];
-
-function scriptedRng(values: readonly number[]): Rng & { calls: () => number } {
-  let index = 0;
-  const rng = () => {
-    const value = values[index++];
-    if (value === undefined) throw new Error('scripted rng exhausted');
-    return value;
-  };
-  return Object.assign(rng, { calls: () => index });
-}
 
 const ids = (column: readonly ReelSymbol[] | undefined) => column?.map((symbol) => symbol.actionId);
 

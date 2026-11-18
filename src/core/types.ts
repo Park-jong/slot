@@ -52,8 +52,9 @@ export interface ActionDef {
   readonly effects: readonly EffectDef[];
 }
 
-export type IntentType = 'attack' | 'guard';
+export type IntentType = 'attack' | 'guard' | 'charge';
 
+/** For `charge`, value is the multiplier applied to the enemy's next attack (integer >= 2). */
 export interface Intent {
   readonly type: IntentType;
   readonly value: number;
@@ -82,17 +83,63 @@ export interface BattleConfig {
   /** Array order is the resolution order within a turn (guard -> shield_bash -> attack in M1). */
   readonly actions: readonly ActionDef[];
   readonly grades: GradeTable;
+  /** Player HP at battle start (HP carried over in a run). Defaults to character.maxHp. */
+  readonly startingHp?: number;
 }
 
 export type BattlePhase = 'ongoing' | 'victory' | 'defeat';
 
+export type EndPhase = Exclude<BattlePhase, 'ongoing'>;
+
 export interface BattleState {
   readonly turn: number;
+  /** May go negative on the killing blow; clamp with max(0, hp) only for display. */
   readonly playerHp: number;
   readonly playerGuard: number;
   /** May go negative on overkill; clamp with max(0, hp) only for display. */
   readonly enemyHp: number;
   readonly enemyGuard: number;
   readonly enemyActionIndex: number;
+  /** Multiplier for the enemy's next attack, set by a charge intent; 1 when not charged. */
+  readonly enemyChargeMult: number;
   readonly phase: BattlePhase;
+}
+
+/** HP restored at a heal point: a fixed amount, or back to max HP. */
+export type HealAmount = number | 'full';
+
+export interface ActionWeight {
+  readonly actionId: ActionId;
+  readonly weight: number;
+}
+
+export interface GradeWeight {
+  readonly grade: GradeId;
+  readonly weight: number;
+}
+
+/** Tunable run numbers (M2 spec sections 1-4). */
+export interface RunRules {
+  /** Applied after every regular battle except the last one before the boss. */
+  readonly healAfterBattle: HealAmount;
+  /** Applied after the last regular battle instead of healAfterBattle. No heal after the boss. */
+  readonly healBeforeBoss: HealAmount;
+  /** Delete/enhance opportunity after clearing battle k when k % editEveryNBattles === 0. */
+  readonly editEveryNBattles: number;
+  readonly reelMin: number;
+  readonly reelMax: number;
+  readonly offerCount: number;
+  /** Order is the reward candidate order (outer loop of spec 2.1). */
+  readonly actionWeights: readonly ActionWeight[];
+  /** Keyed by battles cleared (k = 1..); order is the inner candidate loop (grade ascending). */
+  readonly gradeWeightsByCleared: Readonly<Record<number, readonly GradeWeight[]>>;
+}
+
+export interface RunDefinition {
+  readonly character: CharacterDef;
+  /** One enemy per battle in play order; the last one is the boss. */
+  readonly stages: readonly EnemyDef[];
+  readonly actions: readonly ActionDef[];
+  readonly grades: GradeTable;
+  readonly rules: RunRules;
 }

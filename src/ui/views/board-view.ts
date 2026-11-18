@@ -1,7 +1,7 @@
 import { GRID_SIZE, type BattleConfig, type Board, type Cell, type ReelSymbol, type TurnReport } from '../../core';
 import { createElement } from '../dom';
-import { actionName, formatFiredLine, gradeName } from '../format';
-import { ACTION_ICONS, EMPTY_CELL_ICON, FALLBACK_ACTION_ICON } from '../ui-config';
+import { actionIcon, actionName, formatFiredLine, gradeName } from '../format';
+import { EMPTY_CELL_ICON } from '../ui-config';
 
 export interface ReelTiming {
   readonly firstStopMs: number;
@@ -61,7 +61,7 @@ export class BoardView {
     });
   }
 
-  /** Stops any running animation; safe to call at any time (e.g. switching enemies mid-spin). */
+  /** Stops any running animation; safe to call at any time (e.g. restarting mid-spin). */
   cancel(): void {
     this.pendingTimers.forEach((timer) => window.clearTimeout(timer));
     this.pendingTimers = [];
@@ -109,7 +109,7 @@ function renderSymbolCell(cell: HTMLElement, symbol: ReelSymbol, config: BattleC
   const grade = gradeName(config, symbol.grade);
   cell.className = `cell grade-${symbol.grade}`;
   cell.replaceChildren(
-    createElement('span', 'cell__icon', ACTION_ICONS[symbol.actionId] ?? FALLBACK_ACTION_ICON),
+    createElement('span', 'cell__icon', actionIcon(symbol.actionId)),
     createElement('span', 'cell__label', name),
     createElement('span', 'cell__grade', grade),
   );

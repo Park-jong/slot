@@ -14,3 +14,12 @@ export function createRng(seed: number): Rng {
     return ((t ^ (t >>> 14)) >>> 0) / UINT32_RANGE;
   };
 }
+
+/** One rng call checked against the [0, 1) contract; NaN fails both comparisons, so it is rejected too. */
+export function drawUnit(rng: Rng): number {
+  const value = rng();
+  if (!(value >= 0 && value < 1)) {
+    throw new Error(`rng returned ${value}, expected a value in [0, 1)`);
+  }
+  return value;
+}

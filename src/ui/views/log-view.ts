@@ -1,5 +1,6 @@
 import { createElement } from '../dom';
 import type { TurnLog } from '../format';
+import { LABELS } from '../ui-config';
 
 /** Combat log, newest turn on top. Only renders already formatted text. */
 export class LogView {
@@ -8,7 +9,7 @@ export class LogView {
 
   constructor() {
     this.list.setAttribute('aria-live', 'polite');
-    this.element.append(createElement('h2', 'panel__title', '전투 기록'), this.list);
+    this.element.append(createElement('h2', 'panel__title', LABELS.battleLog), this.list);
   }
 
   reset(intro: string): void {

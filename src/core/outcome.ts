@@ -1,12 +1,9 @@
-import type { ActionDef, ActionId, EffectDef, TierDef } from './types';
+import { EFFECT_IGNORE_GUARD, executableEffects } from './effects';
+import type { JudgeResult } from './judge';
+import type { ActionDef, ActionId, TierDef } from './types';
 
 /** Tier multipliers are stored as numerators over this denominator so power stays integer math. */
 export const MULTIPLIER_DENOMINATOR = 2;
-
-export const EFFECT_IGNORE_GUARD = 'ignore_guard';
-
-/** Effects the engine executes. Any other effect must be marked `deferred` in data. */
-export const IMPLEMENTED_EFFECT_IDS: readonly string[] = [EFFECT_IGNORE_GUARD];
 
 export interface LineTally {
   readonly lineCount: number;
@@ -44,14 +41,9 @@ export function selectTier(tiers: readonly TierDef[], lineCount: number): TierDe
   return tier;
 }
 
-/** Non-deferred effects unlocked at this line count. */
-export function activeEffects(action: ActionDef, lineCount: number): EffectDef[] {
-  return action.effects.filter((effect) => !effect.deferred && effect.minLines <= lineCount);
-}
-
 export function evaluateAction(action: ActionDef, tally: LineTally): ActionOutcome {
   const { multiplierNum } = selectTier(action.tiers, tally.lineCount);
-  const effects = activeEffects(action, tally.lineCount);
+  const effects = executableEffects(action, tally.lineCount);
   return {
     actionId: action.id,
     lineCount: tally.lineCount,
@@ -61,4 +53,16 @@ export function evaluateAction(action: ActionDef, tally: LineTally): ActionOutco
     guard: power(action.basePower.guard, tally.gradeSumTotal, multiplierNum),
     ignoreGuard: effects.some((effect) => effect.id === EFFECT_IGNORE_GUARD),
   };
+}
+
+/** Outcomes for every fired action, ordered by the given action (resolution) order. */
+export function evaluateOutcomes(judgement: JudgeResult, actions: readonly ActionDef[]): ActionOutcome[] {
+  const unknown = Object.keys(judgement.byAction).filter((id) => !actions.some((action) => action.id === id));
+  if (unknown.length > 0) {
+    throw new Error(`evaluateOutcomes: board contains unknown actions ${unknown.join(', ')}`);
+  }
+  return actions.flatMap((action) => {
+    const tally = judgement.byAction[action.id];
+    return tally ? [evaluateAction(action, tally)] : [];
+  });
 }

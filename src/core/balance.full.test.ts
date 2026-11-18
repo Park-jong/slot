@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BALANCE_SEED, simulateWinRate, specWinRateEntries } from './balance-sim';
+import { BALANCE_SEED, simulateWinRate, specWinRateEntries } from '../test-support/balance-sim';
 
 // Opt-in only (`npm run test:balance`): excluded from the default run in vite.config.ts because of its runtime.
 const RUNS = 200_000;

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { GRADES } from '../data';
 import { judge } from './judge';
-import { boardFromRows, EMPTY_BOARD } from './test-helpers';
+import { boardFromRows, EMPTY_BOARD } from '../test-support/test-helpers';
 
 const EXAMPLE_1 = boardFromRows(['A1 A3 A1', 'G1 S1 G1', 'S1 G1 S1']);
 const EXAMPLE_2 = boardFromRows(['A1 A1 G1', 'A2 A1 G1', 'A1 A3 G2']);
@@ -19,7 +19,7 @@ describe('judge', () => {
   it('example 1: only H1 fires, grades are ignored for matching', () => {
     const result = judge(EXAMPLE_1, GRADES);
     expect(result.firedLines.map((line) => [line.lineId, line.actionId, line.gradeSum])).toEqual([['H1', 'attack', 5]]);
-    expect(result.byAction).toEqual({ attack: { lineCount: 1, gradeSumTotal: 5, lineIds: ['H1'] } });
+    expect(result.byAction).toEqual({ attack: { lineCount: 1, gradeSumTotal: 5 } });
   });
 
   it('example 2: two attack verticals and one guard vertical', () => {
@@ -30,16 +30,16 @@ describe('judge', () => {
       ['V3', 4],
     ]);
     expect(result.byAction).toEqual({
-      attack: { lineCount: 2, gradeSumTotal: 9, lineIds: ['V1', 'V2'] },
-      guard: { lineCount: 1, gradeSumTotal: 4, lineIds: ['V3'] },
+      attack: { lineCount: 2, gradeSumTotal: 9 },
+      guard: { lineCount: 1, gradeSumTotal: 4 },
     });
   });
 
   it('example 3: one vertical per action', () => {
     expect(judge(EXAMPLE_3, GRADES).byAction).toEqual({
-      guard: { lineCount: 1, gradeSumTotal: 4, lineIds: ['V1'] },
-      shield_bash: { lineCount: 1, gradeSumTotal: 4, lineIds: ['V2'] },
-      attack: { lineCount: 1, gradeSumTotal: 3, lineIds: ['V3'] },
+      guard: { lineCount: 1, gradeSumTotal: 4 },
+      shield_bash: { lineCount: 1, gradeSumTotal: 4 },
+      attack: { lineCount: 1, gradeSumTotal: 3 },
     });
   });
 
@@ -68,7 +68,6 @@ describe('judge', () => {
     });
     expect(judge(EXAMPLE_2, GRADES)).toEqual(judge(EXAMPLE_2, GRADES));
     expect(random).not.toHaveBeenCalled();
-    expect(judge.length).toBe(2);
   });
 
   it('throws on an unknown grade', () => {

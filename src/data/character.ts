@@ -10,8 +10,15 @@ function buildReel(entries: readonly ReelEntry[]): Reel {
   return entries.flatMap(({ symbol, count }) => Array.from({ length: count }, () => symbol));
 }
 
-// Spec 1.5: attack(1) x3, guard(1) x2, shield_bash(1) x1 on each of the 3 reels.
+// M2 spec 5: attack(1) x3, guard(1) x1, shield_bash(1) x2 on each of the 3 reels.
 const STARTING_REEL = buildReel([
+  { symbol: { actionId: ACTION_ATTACK, grade: 1 }, count: 3 },
+  { symbol: { actionId: ACTION_GUARD, grade: 1 }, count: 1 },
+  { symbol: { actionId: ACTION_SHIELD_BASH, grade: 1 }, count: 2 },
+]);
+
+/** M1 spec 1.5 reel (attack x3, guard x2, shield_bash x1), kept for the M1 regression and balance tests. */
+export const M1_STARTING_REEL = buildReel([
   { symbol: { actionId: ACTION_ATTACK, grade: 1 }, count: 3 },
   { symbol: { actionId: ACTION_GUARD, grade: 1 }, count: 2 },
   { symbol: { actionId: ACTION_SHIELD_BASH, grade: 1 }, count: 1 },

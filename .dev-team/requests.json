@@ -46,7 +46,7 @@
     "priority": "P2",
     "priorityReason": "M1에는 영향이 없고, 효과 구현(M3) 전에 정하면 되므로 다음 마일스톤 작업으로 분류",
     "milestone": "M3",
-    "status": "open",
+    "status": "done",
     "createdAt": "2026-11-17",
     "history": [
       {
@@ -54,6 +54,18 @@
         "by": "메인 세션",
         "status": "open",
         "note": "우선순위 P2"
+      },
+      {
+        "at": "2026-11-17",
+        "by": "기획 팀장",
+        "status": "in_progress",
+        "note": "M2 명세(docs/specs/m2-run-spec.md)에서 해결 예정"
+      },
+      {
+        "at": "2026-11-17",
+        "by": "기획 팀장",
+        "status": "done",
+        "note": "docs/specs/m2-run-spec.md 6장: 같은 id는 minLines 최고 항목 하나만 적용(대체, 합산 아님), (id,minLines) 중복은 데이터 오류, activeEffects 함수. 반사 데이터 값은 변경 없음."
       }
     ]
   },
@@ -67,7 +79,7 @@
     "priority": "P2",
     "priorityReason": "동작에는 문제가 없고 QA 승인도 막지 않음. M2 작업 시작 시 함께 정리하는 것이 적절",
     "milestone": "M2",
-    "status": "open",
+    "status": "done",
     "createdAt": "2026-11-17",
     "history": [
       {
@@ -75,6 +87,18 @@
         "by": "메인 세션",
         "status": "open",
         "note": "우선순위 P2"
+      },
+      {
+        "at": "2026-11-17",
+        "by": "개발 팀장",
+        "status": "in_progress",
+        "note": "M2 작업과 함께 처리 시작. 코어 정리는 클라이언트 프로그래머가 담당."
+      },
+      {
+        "at": "2026-11-17",
+        "by": "개발 팀장",
+        "status": "done",
+        "note": "전 항목 처리: 중복 정리(effects.ts), evaluateOutcomes 이동, validateConfig 분리+검사 추가, lineIds 제거, EFFECT_IGNORE_GUARD, test-support 이동, EndPhase/INSTANT_REELS 이동, balance 턴 상한, judge.length 검사 제거, index.ts 공개 API만 수출, 시드 표시 ?debug 뒤로. src/core, src/test-support, src/ui 참고."
       }
     ]
   },
@@ -95,6 +119,48 @@
         "by": "메인 세션",
         "status": "open",
         "note": "우선순위 P3"
+      }
+    ]
+  },
+  {
+    "id": "REQ-005",
+    "from": "qa",
+    "to": "design",
+    "kind": "feedback",
+    "title": "M2 명세 10장 수치 주석과 API 변경 반영, 보스전 빈 턴 목표 결정",
+    "detail": "(1) docs/specs/m2-run-spec.md 10장의 승률 59.9%는 3,000판·시드 1 기준 값. 20만 판에서는 약 59%(시드에 따라 56.7~59.4%)이므로 주석을 달 것. (2) 보스전 빈 턴이 20만 판 기준 14.5~14.9%로 목표(15~20%)보다 약간 낮음. 목표를 완화할지 보스·편집 수치를 조정할지 결정해 기록(사용자 플레이 소감 반영 권장). (3) 구현에 맞춰 명세 갱신: startRun(definition)이며 난수는 호출하는 쪽이 소유, maxHp는 CharacterDef에서 가져옴, analyzeReels의 선택 옵션({grades 필수, actionIds})과 analyzeEdit 추가.",
+    "priority": "P1",
+    "priorityReason": "기준 문서가 M2 구현·검증 결과와 어긋나 있고, 보스전 목표 판단은 M2 마감 전에 기록해야 함",
+    "milestone": "M2",
+    "status": "open",
+    "createdAt": "2026-11-18",
+    "history": [
+      {
+        "at": "2026-11-18",
+        "by": "메인 세션",
+        "status": "open",
+        "note": "우선순위 P1"
+      }
+    ]
+  },
+  {
+    "id": "REQ-006",
+    "from": "qa",
+    "to": "tech",
+    "kind": "feedback",
+    "title": "M2 코드 리뷰에서 보류한 정리 항목과 데이터 동기화 테스트",
+    "detail": "src/data/run.ts의 REWARD_GRADES가 GRADES id를 중복하고 '?? 0'이 짧은 가중치 행을 숨김(5, 8행). run.ts 107, 117-118행의 'as ReelSymbol' 형변환 제거. 작은 중복 정리(FIRST_DISPLAY_NUMBER 두 곳 정의, stageIndex+1 재계산, 테스트 표기 파서 중복). reel-format.ts의 '평균 등급', '빈 턴', '2라인 이상' 문구를 LABELS로 이동. src/data 수치가 tools/sim/run-config.mjs와 어긋나지 않도록 데이터 동기화 테스트를 추가하거나 출처를 하나로 통합.",
+    "priority": "P2",
+    "priorityReason": "동작에는 문제가 없고 QA 승인을 막지 않음. 다음 마일스톤(M3) 시작 시 정리. 밸런스 어긋남은 3,000판 회귀 테스트가 이미 감지함",
+    "milestone": "M3",
+    "status": "open",
+    "createdAt": "2026-11-18",
+    "history": [
+      {
+        "at": "2026-11-18",
+        "by": "메인 세션",
+        "status": "open",
+        "note": "우선순위 P2"
       }
     ]
   }
