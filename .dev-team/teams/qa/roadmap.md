@@ -17,3 +17,5 @@ M2 리일 편집 루프와 한 판 완주: 스펙(`docs/specs/m2-run-spec.md`) �
 - M2 검증: typecheck/test(243)/test:balance/build 통과, 스펙 §9 예시 및 §1.4 엣지 케이스 매핑, `src/core/m2-spec-gaps.test.ts` 31건 추가, 헤드리스 300판 스모크
 - M2 밸런스: 실제 엔진 대 디자인 sim 200k 동일 시드 완전 일치(승률 59.04%, 보스 빈 턴 14.67%, 무편집 1.60%). `run-balance-sim.ts`, `run-balance.test.ts`(3000판, npm test), `balance.run.full.test.ts`(200k, test:balance) 추가
 - M2 코드 리뷰: must fix 1건, should fix 10건. REQ-003 12항목 모두 완료 확인
+
+- M2.5 검증 (2026-11-18): REQ-009/010/011 완료. 실제 엔진 밸런스 회귀(max+greedy 46.1%, smart 62.1%) 추가, 코어 리뷰 must fix 없음

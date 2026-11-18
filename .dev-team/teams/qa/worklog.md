@@ -38,3 +38,10 @@
 - 산출물: 없음(확인만). typecheck 통과, `npm test` 21파일 252건, `npm run test:balance` 2파일 9건(약 45초), build 통과.
 - 결정 사항: must fix(강화 규칙 이중 구현)는 `nextGrade` 단일 규칙으로 해결 확인(ENHANCE_GRADE_STEP 제거, 빈 등급 테이블/최상위 등급 테스트 존재). 항목 2~8 코드 확인. UI 변화량은 반올림 값 기준(-3.4%p), 발동 불가 표시는 정확 확률 0일 때만: 둘 다 수용. 판정 APPROVED.
 - 남은 문제: 보류된 should fix(REWARD_GRADES 중복/`?? 0`, `as ReelSymbol` 캐스트, 소규모 중복, LABELS 밖 라벨, data-sim 동기화 테스트)는 Tech 요청으로 기록 예정. 디자인에 스펙 §10 수치 주석/API 변경 반영 요청, 보스 빈 턴 14.7%(목표 15% 미만) 결정 필요.
+
+## 2026-11-18 — M2.5 다중 스핀 검증
+- 지시: 디렉터 / 관련 마일스톤: M2.5 / 처리한 요청: REQ-009, REQ-010, REQ-011
+- 참여 팀원: code-reviewer(UI 리뷰), tester(밸런스 시뮬레이터와 테스트)
+- 산출물: src/test-support/multispin-balance-sim.ts, src/core/run-balance-m25.test.ts, src/core/balance.multispin.full.test.ts, run-balance-sim.ts 헤더 주석
+- 결정 사항: 설계 sim과 같은 시드·청크 구조로 이식해 승수 완전 일치(max 910/2000, smart 1240/2000 등). 대형 smart는 12000판(판당 약 10ms, 훅 한도 때문). npm test 409건, test:balance 27건(315초), build 통과. 코어/데이터 must fix 없음, UI must fix 없음.
+- 남은 문제: UI should fix 7건(turn-format 1회 최대 시 Focus 문구, nextMultiplierNum, runTurnStats 등). 760px 이하 시각 확인과 DOM 테스트(REQ-004)는 사람 확인 필요.

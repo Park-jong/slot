@@ -29,3 +29,10 @@
 - 산출물: reel-edit.ts의 단일 nextGrade를 reel-analysis가 공유(ENHANCE_GRADE_STEP 삭제, 등급 간격 테스트 추가), grades 필수화, run-validation.ts 즉시 실패 검증(보스 포함 적·보상표), resolveRunTurn 비공개, 시드 표시는 DEV && ?debug, createStartingBattleConfig로 이름 변경, 퍼센트 변화량을 표시값 기준으로 계산
 - 결정 사항: 변화량은 표시값 차이라 예시 1b 빈 턴이 -3.4%p(정확값 차 -3.34). '발동 불가'는 정확한 확률 0일 때만 표시. 테스트 252개 + balance 9개 통과, typecheck·build 통과.
 - 남은 문제: 보류 항목(REWARD_GRADES 중복, 하드코딩 라벨 등)은 별도 요청 대기.
+
+## 2026-11-18 — M2.5 턴당 다중 스핀 구현
+- 지시: 디렉터 / 관련 마일스톤: M2.5 / 처리한 요청: REQ-007, REQ-008
+- 참여 팀원: client-programmer (엔진·데이터 1차는 사용량 한도로 중단 후 재호출해 완료, 이후 UI)
+- 산출물: src/core/{turn-stats,turn-session,stop-preview,settlement,continue-estimate}.ts 및 battle/run/judge/outcome/reel-analysis 등 갱신, src/data/* (M25_RUN, M2_* 회귀 상수), src/ui/{turn-progress,turn-format}.ts 와 views/spin-*·turn-panel-view, 테스트 391개
+- 결정 사항: spinning 세션에 turnStart 필드 추가, TurnReport.turnEvents에 전체 이벤트 로그, analyzeReels는 spinsPerTurnHardCap을 받을 때만 상한 검사, estimateContinue는 UI에서 별도 rng(시드 1, 200표본)로 기본 켜짐. 적 수치/릴/단계표는 명세·ms-config와 일치 확인.
+- 남은 문제: run-balance-sim의 M2.5 정책 재작성은 QA(REQ-009). DOM 테스트 없음(REQ-004). UI의 다음 단계 배율은 데이터 조회(core에 nextMultiplierNum 추가 검토).
