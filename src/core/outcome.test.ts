@@ -1,22 +1,22 @@
 import { describe, expect, it } from 'vitest';
-import { ACTIONS, GRADES, STANDARD_TIERS } from '../data';
+import { GRADES, M2_ACTIONS, M2_TIERS } from '../data';
 import { judge } from './judge';
 import { evaluateAction, evaluateOutcomes, power, selectTier } from './outcome';
 import { boardFromRows } from '../test-support/test-helpers';
 import type { ActionDef } from './types';
 
 function action(id: string): ActionDef {
-  const found = ACTIONS.find((candidate) => candidate.id === id);
+  const found = M2_ACTIONS.find((candidate) => candidate.id === id);
   if (!found) throw new Error(`missing action ${id}`);
   return found;
 }
 
-const outcomesFor = (rows: string[]) => evaluateOutcomes(judge(boardFromRows(rows), GRADES), ACTIONS);
+const outcomesFor = (rows: string[]) => evaluateOutcomes(judge(boardFromRows(rows), GRADES), M2_ACTIONS);
 
 describe('power and tiers', () => {
   it('selects the tier by line count and caps at the top tier', () => {
-    expect([1, 2, 3, 4, 5, 8].map((n) => selectTier(STANDARD_TIERS, n).multiplierNum)).toEqual([2, 3, 4, 6, 6, 6]);
-    expect(() => selectTier(STANDARD_TIERS, 0)).toThrow();
+    expect([1, 2, 3, 4, 5, 8].map((n) => selectTier(M2_TIERS, n).multiplierNum)).toEqual([2, 3, 4, 6, 6, 6]);
+    expect(() => selectTier(M2_TIERS, 0)).toThrow();
   });
 
   it('selects the max lineCount <= n even when tiers are not sorted', () => {
@@ -69,7 +69,7 @@ describe('M2 example 3: enhanced shield_bash line', () => {
 describe('outcomes from spec boards', () => {
   it('example 1: attack 10, no guard', () => {
     expect(outcomesFor(['A1 A3 A1', 'G1 S1 G1', 'S1 G1 S1'])).toEqual([
-      { actionId: 'attack', lineCount: 1, gradeSumTotal: 5, multiplierNum: 2, damage: 10, guard: 0, ignoreGuard: false },
+      { actionId: 'attack', lineCount: 1, gradeSumTotal: 5, multiplierNum: 2, damage: 10, guard: 0, ignoreGuard: false, focusPct: 0, damagePct: 0 },
     ]);
   });
 

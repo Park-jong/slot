@@ -1,4 +1,4 @@
-import type { GradeId, GradeWeight, RunRules } from '../core/types';
+import type { GradeId, GradeWeight, RunRules, TurnRules } from '../core/types';
 import { ACTION_ATTACK, ACTION_GUARD, ACTION_SHIELD_BASH } from './actions';
 
 /** Grades a reward can have, in candidate order (inner loop of M2 spec 2.1). */
@@ -8,8 +8,17 @@ function gradeWeights(weights: readonly number[]): GradeWeight[] {
   return REWARD_GRADES.map((grade, index) => ({ grade, weight: weights[index] ?? 0 }));
 }
 
-// M2 spec 1-4. Max HP comes from the character (APPRENTICE_KNIGHT.maxHp = 50) so it has a single source.
+// M2.5 spec 5.1 / 6.1: Focus per unused spin and the clamp bounds of the effective max spins.
+export const TURN_RULES: TurnRules = {
+  focusPercentPerUnusedSpin: 50,
+  spinsPerTurnMin: 1,
+  spinsPerTurnHardCap: 5,
+};
+
+// M2 spec 1-4 (unchanged in M2.5) plus the turn rules. Max HP comes from the character
+// (APPRENTICE_KNIGHT.maxHp = 50) so it has a single source.
 export const RUN_RULES: RunRules = {
+  ...TURN_RULES,
   healAfterBattle: 8,
   healBeforeBoss: 'full',
   editEveryNBattles: 3,

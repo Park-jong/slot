@@ -1,6 +1,6 @@
 // M2 spec coverage gaps found while mapping spec 1, 2.2 and 9 onto the existing tests (QA pass, like spec-gaps.test.ts).
 import { describe, expect, it } from 'vitest';
-import { ACTION_ATTACK, ACTION_GUARD, ACTION_SHIELD_BASH, M2_RUN, RUN_RULES, STAGES } from '../data';
+import { ACTION_ATTACK, ACTION_GUARD, ACTION_SHIELD_BASH, M2_RUN, M2_STAGES, RUN_RULES } from '../data';
 import { loseBattle, reelSizes, symbolCount, winBattle, withBattleState } from '../test-support/run-helpers';
 import { boardFromRows, scriptedRng } from '../test-support/test-helpers';
 import { createBattle, resolveTurn } from './battle';
@@ -21,7 +21,7 @@ import {
 import type { RunEvent } from './events';
 import type { ReelSymbol } from './types';
 
-const BOSS_STAGE = STAGES.length - 1;
+const BOSS_STAGE = M2_STAGES.length - 1;
 const REGULAR_BATTLES = BOSS_STAGE;
 const EDIT_AFTER_CLEARED = 3;
 const MAX_HP = 50;
@@ -90,7 +90,7 @@ describe('spec 1.2 / 1.4: win and loss events at every stage', () => {
     expect(rng.calls()).toBe(0);
   });
 
-  it.each(STAGES.map((enemy, stage) => [enemy.id, stage] as const))('losing to %s (stage %i) -> run_lost(stage), defeat', (_, stage) => {
+  it.each(M2_STAGES.map((enemy, stage) => [enemy.id, stage] as const))('losing to %s (stage %i) -> run_lost(stage), defeat', (_, stage) => {
     const result = loseBattle(advanceToStage(stage), scriptedRng([]));
     expect(result.events).toEqual([{ type: 'run_lost', stage }]);
     expect(result.run.state).toMatchObject({ phase: 'defeat', stageIndex: stage, offers: null });
@@ -106,7 +106,7 @@ describe('spec 1.4: player guard does not carry between battles', () => {
     const next = skipOffer(won).run.state.battle;
     expect(next?.state.playerGuard).toBe(0);
     expect(next?.state.playerHp).toBe(40 + HEAL_AMOUNT);
-    expect(next?.state.enemyHp).toBe(STAGES[1]?.hp);
+    expect(next?.state.enemyHp).toBe(M2_STAGES[1]?.hp);
   });
 });
 

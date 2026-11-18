@@ -107,7 +107,7 @@ describe('previewEdit: spec section 9 examples', () => {
     expectPercentRow(before, M2_BEFORE);
     expectPercentRow(after, { empty: 25.59, attack: [60.17, 23.18], guard: [0, 0], skill: [20.76, 1.38] });
     expect(after.reelSizes).toEqual([6, 5, 6]);
-    expect(after.actions[GUARD]).toEqual({ fire: 0, fire2plus: 0, expectedLines: 0, avgGradeValue: 1 });
+    expect(after.actions[GUARD]).toEqual({ fire: 0, fire2plus: 0, fire3plus: 0, expectedLines: 0, avgGradeValue: 1 });
   });
 
   it('example 3: enhance S1 (index 4) on reel 2 changes only avgGradeValue', () => {
@@ -259,7 +259,7 @@ describe('analyzeReels: invariants', () => {
   it('all symbols of one action: every line fires', () => {
     const result = analyzeReels([reel('A1 A2 A3'), reel('A1 A1 A1'), reel('A4 A1 A1 A1')], OPTIONS);
     expect(result.empty).toBe(0);
-    expect(result.actions[ATTACK]).toEqual({ fire: 1, fire2plus: 1, expectedLines: 8, avgGradeValue: 16 / 10 });
+    expect(result.actions[ATTACK]).toEqual({ fire: 1, fire2plus: 1, fire3plus: 1, expectedLines: 8, avgGradeValue: 16 / 10 });
   });
 });
 
@@ -267,7 +267,7 @@ describe('analyzeReels: options', () => {
   it('actionIds adds absent actions with zero values, listed first', () => {
     const result = analyzeReels([reel('A1 A1 S1'), reel('A1 A1 S1'), reel('A1 A1 S1')], { ...OPTIONS, actionIds: [GUARD, ATTACK] });
     expect(Object.keys(result.actions)).toEqual([GUARD, ATTACK, SKILL]);
-    expect(result.actions[GUARD]).toEqual({ fire: 0, fire2plus: 0, expectedLines: 0, avgGradeValue: 0 });
+    expect(result.actions[GUARD]).toEqual({ fire: 0, fire2plus: 0, fire3plus: 0, expectedLines: 0, avgGradeValue: 0 });
   });
 
   it('grades table supplies avgGradeValue; unknown grade throws', () => {
@@ -390,5 +390,95 @@ describe('analyzeReels: performance', () => {
     const start = performance.now();
     analyzeReels(big, OPTIONS);
     expect(performance.now() - start).toBeLessThan(LOOSE_BUDGET_MS);
+  });
+});
+
+describe('analyzeReels: pooled spins per turn (m25-multispin-spec 8.5)', () => {
+  const M25_START = reel('A1 A1 A1 G1 G1 S1 S1');
+  const M25_REELS = [M25_START, M25_START, M25_START];
+
+  /** One spec 8.5 row: empty, then [>=1, >=2, >=3] for guard, skill and attack (percent). */
+  interface TurnRow {
+    readonly empty: number;
+    readonly guard: readonly [number, number, number];
+    readonly skill: readonly [number, number, number];
+    readonly attack: readonly [number, number, number];
+  }
+
+  function expectTurnRow(result: ReelAnalysis, row: TurnRow): void {
+    const near = (actual: number | undefined, percent: number): void => {
+      expect(Math.abs((actual ?? Number.NaN) - percent / 100)).toBeLessThanOrEqual(PERCENT_POINT_TOLERANCE);
+    };
+    near(result.empty, row.empty);
+    for (const [actionId, values] of [
+      [GUARD, row.guard],
+      [SKILL, row.skill],
+      [ATTACK, row.attack],
+    ] as const) {
+      const analysis = result.actions[actionId];
+      near(analysis?.fire, values[0]);
+      near(analysis?.fire2plus, values[1]);
+      near(analysis?.fire3plus, values[2]);
+    }
+  }
+
+  const M25_ROWS: readonly (readonly [number, TurnRow])[] = [
+    [1, { empty: 44.86, guard: [11.2, 0.44, 0.02], skill: [11.2, 0.44, 0.02], attack: [36.52, 8.59, 2.15] }],
+    [2, { empty: 20.12, guard: [21.14, 2.04, 0.14], skill: [21.14, 2.04, 0.14], attack: [59.71, 24.24, 8.27] }],
+    [3, { empty: 9.03, guard: [29.97, 4.53, 0.45], skill: [29.97, 4.53, 0.45], attack: [74.42, 40.66, 18.02] }],
+  ];
+  const M2_ROWS: readonly (readonly [number, TurnRow])[] = [
+    [1, { empty: 32.96, guard: [2.31, 0, 0], skill: [17.45, 1.01, 0.06], attack: [52.4, 17.38, 5.53] }],
+    [2, { empty: 10.86, guard: [4.58, 0.05, 0], skill: [31.86, 4.71, 0.44], attack: [77.34, 44.0, 20.45] }],
+    [3, { empty: 3.58, guard: [6.78, 0.16, 0], skill: [43.75, 10.13, 1.5], attack: [89.21, 65.41, 39.83] }],
+  ];
+
+  it.each(M25_ROWS)('M2.5 start reel AAAGGSS x3, %i spin(s) matches the 8.5 table', (spins, row) => {
+    expectTurnRow(analyzeReels(M25_REELS, { ...OPTIONS, spins }), row);
+  });
+
+  it.each(M2_ROWS)('M2 start reel AAAGSS x3, %i spin(s) matches the 8.5 table', (spins, row) => {
+    expectTurnRow(analyzeReels(M2_REELS, { ...OPTIONS, spins }), row);
+  });
+
+  it('spins 1 equals the default; emptySpin is the one-spin value whatever spins is', () => {
+    expect(analyzeReels(M25_REELS, { ...OPTIONS, spins: 1 })).toEqual(analyzeReels(M25_REELS, OPTIONS));
+    const single = analyzeReels(M25_REELS, OPTIONS);
+    for (const spins of [1, 2, 3, 4, 5]) {
+      const turn = analyzeReels(M25_REELS, { ...OPTIONS, spins });
+      expect(turn.emptySpin).toBe(single.empty);
+      expect(Math.abs(turn.empty - single.empty ** spins)).toBeLessThanOrEqual(EXACT_TOLERANCE);
+    }
+  });
+
+  it('expected lines add up over spins; avgGradeValue does not change', () => {
+    const single = analyzeReels(MIXED_REELS, OPTIONS);
+    const turn = analyzeReels(MIXED_REELS, { ...OPTIONS, spins: 3 });
+    for (const actionId of [ATTACK, GUARD, SKILL]) {
+      expect(Math.abs((turn.actions[actionId]?.expectedLines ?? 0) - 3 * (single.actions[actionId]?.expectedLines ?? 0))).toBeLessThanOrEqual(
+        EXACT_TOLERANCE,
+      );
+      expect(turn.actions[actionId]?.avgGradeValue).toBe(single.actions[actionId]?.avgGradeValue);
+      // P(>= 1 pooled line) = 1 - P(no line in any spin).
+      const none = 1 - (single.actions[actionId]?.fire ?? 0);
+      expect(Math.abs((turn.actions[actionId]?.fire ?? 0) - (1 - none ** 3))).toBeLessThanOrEqual(EXACT_TOLERANCE);
+    }
+  });
+
+  it('previewEdit passes spins to both sides', () => {
+    const edit = { kind: 'delete', reelIndex: 1, symbolIndex: 3 } as const;
+    const preview = previewEdit(M25_REELS, edit, { ...OPTIONS, spins: 3 });
+    expect(preview.before).toEqual(analyzeReels(M25_REELS, { ...OPTIONS, spins: 3 }));
+    expect(preview.after.empty).toBeCloseTo(preview.after.emptySpin ** 3, 12);
+  });
+
+  it.each([0, -1, 1.5, Number.NaN])('spins %s throws', (spins) => {
+    expect(() => analyzeReels(M25_REELS, { ...OPTIONS, spins })).toThrow(/spins/);
+  });
+
+  it('spins above the given spinsPerTurnHardCap throws; up to it is fine', () => {
+    const HARD_CAP = 5;
+    expect(() => analyzeReels(M25_REELS, { ...OPTIONS, spins: HARD_CAP + 1, spinsPerTurnHardCap: HARD_CAP })).toThrow(/spins 6 must be an integer in 1..5/);
+    expect(analyzeReels(M25_REELS, { ...OPTIONS, spins: HARD_CAP, spinsPerTurnHardCap: HARD_CAP }).empty).toBeGreaterThan(0);
   });
 });

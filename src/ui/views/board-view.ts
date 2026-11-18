@@ -1,6 +1,7 @@
-import { GRID_SIZE, type BattleConfig, type Board, type Cell, type ReelSymbol, type TurnReport } from '../../core';
+import { GRID_SIZE, type BattleConfig, type Board, type Cell, type JudgeResult, type ReelSymbol } from '../../core';
 import { createElement } from '../dom';
-import { actionIcon, actionName, formatFiredLine, gradeName } from '../format';
+import { actionIcon, actionName, gradeName } from '../format';
+import { formatSpinCaption } from '../turn-format';
 import { EMPTY_CELL_ICON } from '../ui-config';
 
 export interface ReelTiming {
@@ -8,11 +9,28 @@ export interface ReelTiming {
   readonly stopIntervalMs: number;
 }
 
+/** One spin of a turn with its board: a SpinReport or a SpinRecord. */
+export interface BoardSpin {
+  readonly index: number;
+  readonly board: Board;
+  readonly judgement: JudgeResult;
+}
+
 const cellKey = (cell: Cell): string => `${cell.reel}:${cell.row}`;
 
-/** 3x3 board: columns are reels, rows top to bottom (board[reel][row]). Owns the reel-stop animation. */
+/** Cells covered by the spin's fired lines, as cellKey strings. */
+export function firedCellKeys(judgement: JudgeResult): ReadonlySet<string> {
+  return new Set(judgement.firedLines.flatMap((line) => line.cells.map(cellKey)));
+}
+
+/** Whether the cell at (reel, row) is part of a fired line. */
+export function isFired(firedCells: ReadonlySet<string>, reel: number, row: number): boolean {
+  return firedCells.has(cellKey({ reel, row }));
+}
+
+/** The latest spin as a large 3x3 board: columns are reels, rows top to bottom (board[reel][row]). Owns the reel-stop animation. */
 export class BoardView {
-  readonly element = createElement('section', 'panel board-panel');
+  readonly element = createElement('div', 'board-view');
   private readonly reels: HTMLElement[] = [];
   private readonly cells: HTMLElement[][] = [];
   private readonly caption = createElement('p', 'board__caption');
@@ -28,22 +46,23 @@ export class BoardView {
       this.reels.push(column);
       this.cells.push(cells);
     }
+    this.caption.setAttribute('aria-live', 'polite');
     this.element.append(grid, this.caption);
-    this.reset();
   }
 
-  reset(): void {
+  /** Empty board with a hint caption. */
+  reset(caption: string): void {
     this.cancel();
     for (const column of this.cells) {
       for (const cell of column) {
         renderEmptyCell(cell);
       }
     }
-    this.caption.textContent = '스핀을 눌러 전투를 시작하세요';
+    this.caption.textContent = caption;
   }
 
-  /** Reveals the board reel by reel, then highlights fired lines and calls onDone. */
-  playSpin(report: TurnReport, config: BattleConfig, timing: ReelTiming, onDone: () => void): void {
+  /** Reveals the board reel by reel, then highlights the spin's fired lines and calls onDone. */
+  playSpin(spin: BoardSpin, config: BattleConfig, timing: ReelTiming, onDone: () => void): void {
     this.cancel();
     this.clearHighlights();
     this.caption.textContent = '...';
@@ -52,13 +71,20 @@ export class BoardView {
       const isLast = reel === this.reels.length - 1;
       this.schedule(timing.firstStopMs + reel * timing.stopIntervalMs, () => {
         column.classList.remove('reel--spinning');
-        this.renderReel(report.board, reel, config);
+        this.renderReel(spin.board, reel, config);
         if (isLast) {
-          this.showJudgement(report, config);
+          this.showJudgement(spin, config);
           onDone();
         }
       });
     });
+  }
+
+  /** Shows a spin at once (no animation), e.g. when the screen is re-shown mid-turn. */
+  showSpin(spin: BoardSpin, config: BattleConfig): void {
+    this.cancel();
+    this.reels.forEach((_, reel) => this.renderReel(spin.board, reel, config));
+    this.showJudgement(spin, config);
   }
 
   /** Stops any running animation; safe to call at any time (e.g. restarting mid-spin). */
@@ -81,16 +107,12 @@ export class BoardView {
     });
   }
 
-  private showJudgement(report: TurnReport, config: BattleConfig): void {
-    const { firedLines } = report.judgement;
-    const firedCells = new Set(firedLines.flatMap((line) => line.cells.map(cellKey)));
+  private showJudgement(spin: BoardSpin, config: BattleConfig): void {
+    const firedCells = firedCellKeys(spin.judgement);
     this.cells.forEach((column, reel) =>
-      column.forEach((cell, row) => cell.classList.toggle('cell--fired', firedCells.has(cellKey({ reel, row })))),
+      column.forEach((cell, row) => cell.classList.toggle('cell--fired', isFired(firedCells, reel, row))),
     );
-    this.caption.textContent =
-      firedLines.length > 0
-        ? firedLines.map((line) => formatFiredLine(line, config)).join(' / ')
-        : '발동한 라인 없음';
+    this.caption.textContent = formatSpinCaption(spin, config);
   }
 
   private clearHighlights(): void {
@@ -104,7 +126,7 @@ function renderEmptyCell(cell: HTMLElement): void {
   cell.removeAttribute('title');
 }
 
-function renderSymbolCell(cell: HTMLElement, symbol: ReelSymbol, config: BattleConfig): void {
+export function renderSymbolCell(cell: HTMLElement, symbol: ReelSymbol, config: BattleConfig): void {
   const name = actionName(config, symbol.actionId);
   const grade = gradeName(config, symbol.grade);
   cell.className = `cell grade-${symbol.grade}`;

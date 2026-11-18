@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createRng, passEdit, skipOffer, startRun, type Run, type RunEvent } from '../core';
-import { ACTION_ATTACK, ACTION_GUARD, ACTION_SHIELD_BASH, M2_RUN } from '../data';
+import { ACTION_ATTACK, ACTION_GUARD, ACTION_SHIELD_BASH, M25_RUN, M2_RUN } from '../data';
 import { loseBattle, winBattle } from '../test-support/run-helpers';
 import { scriptedRng } from '../test-support/test-helpers';
 import {
@@ -147,5 +147,15 @@ describe('formatRunEnd', () => {
       title: '런 클리어!',
       summary: '도달: 전투 6/6 (👑 보스 오우거) · 클리어 6/6 · 남은 HP 27/50',
     });
+  });
+});
+
+describe('the M2.5 product run', () => {
+  it('shows the same progress text and boss marker for the M2.5 stages', () => {
+    const run = startRun(M25_RUN);
+    expect(formatRunProgress(run)).toBe('전투 1/6 · 슬라임');
+    expect(enemyLabel(M25_RUN, M25_RUN.stages.length - 1)).toBe('👑 보스 오우거');
+    const won = winBattle(run, 40, createRng(1));
+    expect(formatRunEvents(won.events, M25_RUN).slice(0, 2)).toEqual(['전투 1/6 승리: 슬라임 처치 (남은 HP 40)', '회복 +8 → HP 48/50']);
   });
 });

@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { createBattle, createBattleFromState, currentIntentPreview, resolveTurn, type BattleEvent, type BattleState } from '../core';
-import { boardFromRows, EMPTY_BOARD } from '../test-support/test-helpers';
-import { ACTION_ATTACK, ACTION_SHIELD_BASH, createStartingBattleConfig } from '../data';
+import {
+  createBattle,
+  createBattleFromState,
+  currentIntentPreview,
+  resolveTurn,
+  type ActionOutcome,
+  type BattleEvent,
+  type BattleState,
+} from '../core';
+import { boardFromRows } from '../test-support/test-helpers';
+import { ACTION_ATTACK, ACTION_SHIELD_BASH, createM2BattleConfig } from '../data';
 import {
   displayHp,
   formatBattleResult,
@@ -9,11 +17,13 @@ import {
   formatEvent,
   formatIntentPreview,
   formatMultiplier,
-  formatTurn,
+  formatOutcome,
+  formatPowerSummary,
+  formatSignedPercent,
 } from './format';
 
-const slimeConfig = createStartingBattleConfig('slime');
-const ogreConfig = createStartingBattleConfig('ogre');
+const slimeConfig = createM2BattleConfig('slime');
+const ogreConfig = createM2BattleConfig('ogre');
 const TOP_ROW_ATTACK_BOARD = boardFromRows(['A1 A1 A1', 'G1 S1 G1', 'S1 G1 S1']);
 
 describe('formatEvent', () => {
@@ -69,28 +79,31 @@ describe('formatEvent', () => {
   });
 });
 
-describe('formatTurn', () => {
-  it('lists fired lines, computed values and ordered events from the report', () => {
-    const { report } = resolveTurn(createBattle(slimeConfig), TOP_ROW_ATTACK_BOARD);
-    expect(formatTurn(report, slimeConfig)).toEqual({
-      title: '턴 1 · 적 의도 공격 5',
-      sections: [
-        { label: '발동 라인', items: ['H1 공격 (등급 합 3)'] },
-        { label: '계산', items: ['공격: 1라인, 등급 합 3, 배율 x1 → 피해 6'] },
-        {
-          label: '진행',
-          items: ['공격 6 피해: HP -6 (슬라임 HP 18, 방어도 0)', '슬라임의 공격 5 피해: HP -5 (내 HP 45, 방어도 0)'],
-        },
-      ],
-    });
+describe('formatOutcome and formatPowerSummary', () => {
+  const outcome: ActionOutcome = {
+    actionId: ACTION_ATTACK,
+    lineCount: 2,
+    gradeSumTotal: 6,
+    multiplierNum: 3,
+    damage: 13,
+    guard: 0,
+    ignoreGuard: false,
+    focusPct: 50,
+    damagePct: 0,
+  };
+
+  it('lists line count, grade sum, tier and the bonuses in effect before the final power', () => {
+    expect(formatOutcome(outcome, slimeConfig)).toBe('공격: 2줄, 등급 합 6, 배율 x1.5, 집중 +50% → 피해 13');
+    expect(formatOutcome({ ...outcome, focusPct: 0, damagePct: -20 }, slimeConfig)).toBe(
+      '공격: 2줄, 등급 합 6, 배율 x1.5, 피해 보정 -20% → 피해 13',
+    );
   });
 
-  it('explains an empty turn and still shows the enemy action', () => {
-    const { report } = resolveTurn(createBattle(slimeConfig), EMPTY_BOARD);
-    const turn = formatTurn(report, slimeConfig);
-    expect(turn.sections.map((section) => section.label)).toEqual(['발동 라인', '진행']);
-    expect(turn.sections[0]?.items[0]).toContain('빈 턴');
-    expect(turn.sections[1]?.items).toEqual(['슬라임의 공격 5 피해: HP -5 (내 HP 45, 방어도 0)']);
+  it('names damage, guard and ignore_guard, or no effect', () => {
+    expect(formatPowerSummary({ damage: 3, guard: 3, ignoreGuard: false })).toBe('피해 3, 방어도 3');
+    expect(formatPowerSummary({ damage: 60, guard: 0, ignoreGuard: true })).toBe('피해 60, 방어도 무시');
+    expect(formatPowerSummary({ damage: 0, guard: 0, ignoreGuard: false })).toBe('효과 없음');
+    expect(formatSignedPercent(0)).toBe('+0%');
   });
 });
 
@@ -147,11 +160,6 @@ describe('formatIntentPreview (M2 spec 7.2, example 4)', () => {
   it('on the following turn marks the attack as boosted and keeps the base value', () => {
     const preview = currentIntentPreview(ogreAt({ enemyActionIndex: 2, enemyChargeMult: 2 }));
     expect(formatIntentPreview(preview)).toBe('공격 20 (강화됨 · 기본 10)');
-  });
-
-  it('titles a turn with the effective intent the enemy used', () => {
-    const { report } = resolveTurn(ogreAt({ enemyActionIndex: 2, enemyChargeMult: 2 }), EMPTY_BOARD);
-    expect(formatTurn(report, ogreConfig).title).toBe('턴 1 · 적 의도 공격 20 (강화됨 · 기본 10)');
   });
 });
 

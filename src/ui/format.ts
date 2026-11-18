@@ -1,21 +1,18 @@
 // Pure text formatting of engine output. Every number shown here comes from the engine's report;
 // nothing is recomputed, only described.
 import {
-  currentIntentPreview,
   MULTIPLIER_DENOMINATOR,
   type ActionDef,
   type ActionId,
   type ActionOutcome,
-  type Battle,
+  type BattleView,
   type BattleConfig,
   type BattleEvent,
   type EndPhase,
-  type FiredLine,
   type GradeId,
   type GradeTable,
   type IntentPreview,
   type IntentType,
-  type TurnReport,
 } from '../core';
 import { ACTION_ICONS, FALLBACK_ACTION_ICON } from './ui-config';
 
@@ -81,25 +78,49 @@ export function formatIntentPreview(preview: IntentPreview): string {
   return INTENT_PREVIEW_FORMATTERS[preview.type](preview);
 }
 
-export function formatFiredLine(line: FiredLine, config: BattleConfig): string {
-  return `${line.lineId} ${actionName(config, line.actionId)} (등급 합 ${line.gradeSum})`;
-}
-
 export function formatMultiplier(multiplierNum: number): string {
   return `x${multiplierNum / MULTIPLIER_DENOMINATOR}`;
 }
 
-export function formatOutcome(outcome: ActionOutcome, config: BattleConfig): string {
+/** "+50%" / "-20%": a signed percent bonus. */
+export function formatSignedPercent(percent: number): string {
+  return `${percent < 0 ? '-' : '+'}${Math.abs(percent)}%`;
+}
+
+/** The engine values of what an action does (an outcome or a stop-preview action). */
+export interface PowerValues {
+  readonly damage: number;
+  readonly guard: number;
+  readonly ignoreGuard: boolean;
+}
+
+/** "피해 13, 방어도 무시"; "효과 없음" when the action produces nothing. */
+export function formatPowerSummary(values: PowerValues): string {
   const results = [
-    outcome.damage > 0 ? `피해 ${outcome.damage}` : null,
-    outcome.guard > 0 ? `방어도 ${outcome.guard}` : null,
-    outcome.ignoreGuard ? '방어도 무시' : null,
+    values.damage > 0 ? `피해 ${values.damage}` : null,
+    values.guard > 0 ? `방어도 ${values.guard}` : null,
+    values.ignoreGuard ? '방어도 무시' : null,
   ].filter((text): text is string => text !== null);
-  const summary = results.length > 0 ? results.join(', ') : '효과 없음';
-  return (
-    `${actionName(config, outcome.actionId)}: ${outcome.lineCount}라인, 등급 합 ${outcome.gradeSumTotal}, ` +
-    `배율 ${formatMultiplier(outcome.multiplierNum)} → ${summary}`
-  );
+  return results.length > 0 ? results.join(', ') : '효과 없음';
+}
+
+/** Percent bonuses in effect for an outcome; none for a turn without unused spins or modifiers. */
+function bonusTexts(outcome: ActionOutcome): string[] {
+  return [
+    outcome.focusPct !== 0 ? `집중 ${formatSignedPercent(outcome.focusPct)}` : null,
+    outcome.damagePct !== 0 ? `피해 보정 ${formatSignedPercent(outcome.damagePct)}` : null,
+  ].filter((text): text is string => text !== null);
+}
+
+/** Final power of one action: "공격: 2줄, 등급 합 6, 배율 x1.5, 집중 +50% → 피해 13". */
+export function formatOutcome(outcome: ActionOutcome, names: ActionNames): string {
+  const factors = [
+    `${outcome.lineCount}줄`,
+    `등급 합 ${outcome.gradeSumTotal}`,
+    `배율 ${formatMultiplier(outcome.multiplierNum)}`,
+    ...bonusTexts(outcome),
+  ];
+  return `${actionName(names, outcome.actionId)}: ${factors.join(', ')} → ${formatPowerSummary(outcome)}`;
 }
 
 function describeHit(amount: number, absorbed: number, hpLoss: number): string {
@@ -142,27 +163,8 @@ export function formatEvent(event: BattleEvent, config: BattleConfig): string {
   return formatter(event, config);
 }
 
-export function formatTurn(report: TurnReport, config: BattleConfig): TurnLog {
-  const { firedLines } = report.judgement;
-  const lines: LogSection =
-    firedLines.length > 0
-      ? { label: '발동 라인', items: firedLines.map((line) => formatFiredLine(line, config)) }
-      : { label: '발동 라인', items: ['빈 턴: 발동한 라인이 없어 행동하지 않음'] };
-  const sections: LogSection[] = [
-    lines,
-    { label: '계산', items: report.outcomes.map((outcome) => formatOutcome(outcome, config)) },
-    { label: '진행', items: report.events.map((event) => formatEvent(event, config)) },
-  ];
-  // The preview of the turn's starting state shows the charged value the enemy actually used.
-  const intent = currentIntentPreview({ config, state: report.before });
-  return {
-    title: `턴 ${report.turn} · 적 의도 ${formatIntentPreview(intent)}`,
-    sections: sections.filter((section) => section.items.length > 0),
-  };
-}
-
 /** Uses the battle's starting HP, which is carried over between run battles. */
-export function formatBattleStart(battle: Battle): string {
+export function formatBattleStart(battle: BattleView): string {
   const { config, state } = battle;
   return (
     `전투 시작: ${config.character.name} (HP ${state.playerHp}/${config.character.maxHp}) ` +
@@ -179,7 +181,7 @@ export interface BattleResultText {
 }
 
 /** Null while the battle is still going. */
-export function formatBattleResult(battle: Battle): BattleResultText | null {
+export function formatBattleResult(battle: BattleView): BattleResultText | null {
   const { state, config } = battle;
   if (state.phase === 'ongoing') {
     return null;

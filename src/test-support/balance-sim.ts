@@ -1,9 +1,10 @@
 // Test-only Monte Carlo helpers shared by the quick (default) and full (opt-in) M1 balance tests.
-// M1 balance numbers were measured with the M1 starting reel, so the simulation keeps using it.
+// M1 balance numbers were measured with the M1 starting reel, the M1 enemies (= M2 slime/goblin), the M2
+// tiers and one spin per turn, so the simulation keeps exactly that setup (M2.5 spec 8.6).
 import { createBattle, isBattleOver, playTurn } from '../core/battle';
 import { createRng } from '../core/rng';
 import type { BattleConfig } from '../core/types';
-import { createStartingBattleConfig, M1_STARTING_REEL, type EnemyId } from '../data';
+import { createM2BattleConfig, M1_STARTING_REEL, type EnemyId } from '../data';
 
 /** M1 spec section 4 table (200k-run simulation). */
 export const SPEC_WIN_RATE: Readonly<Partial<Record<EnemyId, number>>> = { slime: 0.995, goblin: 0.842 };
@@ -14,7 +15,7 @@ export const BALANCE_SEED = 20261117;
 export const MAX_TURNS_PER_BATTLE = 200;
 
 export function m1BalanceConfig(enemyId: EnemyId): BattleConfig {
-  return { ...createStartingBattleConfig(enemyId), reels: [M1_STARTING_REEL, M1_STARTING_REEL, M1_STARTING_REEL] };
+  return { ...createM2BattleConfig(enemyId), reels: [M1_STARTING_REEL, M1_STARTING_REEL, M1_STARTING_REEL] };
 }
 
 export function simulateWinRate(enemyId: EnemyId, runs: number, seed: number): number {

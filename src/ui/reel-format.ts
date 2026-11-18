@@ -1,8 +1,9 @@
 // Pure text for reels: symbols, composition and the exact probability previews of the reel-edit screens
-// (M2 spec 8). Values come from the engine's reel analysis; only rounding and wording happen here.
-import type { ActionDef, ActionId, ReelCompositionEntry, ReelEditPreview, ReelSymbol } from '../core';
+// (M2 spec 8, M2.5 spec 7.2: per turn, pooled over the effective max spins). Values come from the engine's
+// reel analysis; only rounding and wording happen here.
+import type { ActionAnalysis, ActionDef, ActionId, ReelCompositionEntry, ReelEditPreview, ReelSymbol } from '../core';
 import { actionIcon, actionName, gradeName, type ActionNames, type GradeNames } from './format';
-import { ACTION_DISPLAY_ORDER, GRADE_AVERAGE_DECIMALS, PERCENT_DECIMALS } from './ui-config';
+import { ACTION_DISPLAY_ORDER, EXPECTED_LINES_DECIMALS, GRADE_AVERAGE_DECIMALS, PERCENT_DECIMALS } from './ui-config';
 
 const PERCENT_SCALE = 100;
 /** Reels are 0-based in the engine and numbered from 1 on screen. */
@@ -18,7 +19,7 @@ export interface StatRow {
   readonly after: string;
   readonly delta: string;
   readonly trend: Trend;
-  /** Detail row under an action (2+ lines, average grade). */
+  /** Detail row under an action (2+ / 3+ lines, expected lines, average grade). */
   readonly secondary: boolean;
   /** The action cannot fire at all after the edit: the exact probability is 0. A tiny nonzero value that merely displays as 0.0% is not flagged. */
   readonly impossible: boolean;
@@ -47,6 +48,11 @@ export function formatSymbol(symbol: ReelSymbol, names: SymbolNames): string {
 
 export function formatCompositionEntry(entry: ReelCompositionEntry, names: SymbolNames): string {
   return `${formatSymbol(entry, names)} ×${entry.count}`;
+}
+
+/** Which turn the probabilities describe (M2.5 spec 7.2): every spin of the turn taken, lines pooled. */
+export function formatTurnBasis(spins: number): string {
+  return `발동 확률은 한 턴 기준입니다 (스핀 ${spins}회를 모두 돌려 합산).`;
 }
 
 export function formatPercent(probability: number): string {
@@ -90,12 +96,13 @@ function percentRow(label: string, before: number, after: number, secondary: boo
   };
 }
 
-function gradeAverageRow(before: number, after: number): StatRow {
-  const delta = formatDelta(after - before, GRADE_AVERAGE_DECIMALS, '');
+/** A secondary row of plain numbers (expected lines, average grade) with the given decimals. */
+function numberRow(label: string, before: number, after: number, decimals: number): StatRow {
+  const delta = formatDelta(after - before, decimals, '');
   return {
-    label: '평균 등급',
-    before: before.toFixed(GRADE_AVERAGE_DECIMALS),
-    after: after.toFixed(GRADE_AVERAGE_DECIMALS),
+    label,
+    before: before.toFixed(decimals),
+    after: after.toFixed(decimals),
     delta: delta.text,
     trend: delta.trend,
     secondary: true,
@@ -103,10 +110,16 @@ function gradeAverageRow(before: number, after: number): StatRow {
   };
 }
 
+/** Pooled line-count thresholds shown under an action: 2 (second tier) and 3 (last tier, ignore_guard). */
+const LINE_THRESHOLD_ROWS: readonly { readonly label: string; readonly pick: (stats: ActionAnalysis) => number }[] = [
+  { label: '2줄 이상', pick: (stats) => stats.fire2plus },
+  { label: '3줄 이상', pick: (stats) => stats.fire3plus },
+];
+
 /**
- * Rows for one edit preview: the empty-turn chance, then per action its fire chance, its 2+ line chance
- * when that is non-zero before or after, and its average grade when the edit changes it.
- * Actions follow the analysis key order (the requested actionIds order).
+ * Rows for one edit preview: the empty-turn chance, then per action its chance of at least one line, its 2+ and
+ * 3+ line chances when non-zero before or after, its expected lines when it can fire, and its average grade
+ * when the edit changes it. Actions follow the analysis key order (the requested actionIds order).
  */
 export function statRows(preview: ReelEditPreview, names: ActionNames): StatRow[] {
   const { before, after } = preview;
@@ -115,11 +128,16 @@ export function statRows(preview: ReelEditPreview, names: ActionNames): StatRow[
     const previous = before.actions[actionId];
     if (!previous) continue;
     rows.push({ ...percentRow(actionName(names, actionId), previous.fire, next.fire, false), impossible: next.fire === 0 });
-    if (previous.fire2plus > 0 || next.fire2plus > 0) {
-      rows.push(percentRow('2라인 이상', previous.fire2plus, next.fire2plus, true));
+    for (const { label, pick } of LINE_THRESHOLD_ROWS) {
+      if (pick(previous) > 0 || pick(next) > 0) {
+        rows.push(percentRow(label, pick(previous), pick(next), true));
+      }
+    }
+    if (previous.fire > 0 || next.fire > 0) {
+      rows.push(numberRow('기대 줄 수', previous.expectedLines, next.expectedLines, EXPECTED_LINES_DECIMALS));
     }
     if (previous.avgGradeValue !== next.avgGradeValue) {
-      rows.push(gradeAverageRow(previous.avgGradeValue, next.avgGradeValue));
+      rows.push(numberRow('평균 등급', previous.avgGradeValue, next.avgGradeValue, GRADE_AVERAGE_DECIMALS));
     }
   }
   return rows;

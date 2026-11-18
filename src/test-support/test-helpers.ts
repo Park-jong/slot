@@ -57,3 +57,12 @@ export function scriptedRng(values: readonly number[]): ScriptedRng {
   };
   return Object.assign(rng, { calls: () => index });
 }
+
+/** Freezes a value and everything it references, so a mutating engine call throws in strict mode. */
+export function deepFreeze<T>(value: T): T {
+  if (value && typeof value === 'object') {
+    Object.values(value).forEach(deepFreeze);
+    Object.freeze(value);
+  }
+  return value;
+}

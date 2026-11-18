@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { createRng, previewEdit, skipOffer, startRun, type Run, type RunDefinition } from '../core';
-import { ACTION_ATTACK, ACTION_GUARD, ACTION_SHIELD_BASH, M2_RUN } from '../data';
+import { ACTION_ATTACK, ACTION_GUARD, ACTION_SHIELD_BASH, M25_RUN, M2_RUN, RUN_RULES } from '../data';
 import { definitionWithReels, winBattle } from '../test-support/run-helpers';
 import { scriptedRng } from '../test-support/test-helpers';
-import { analysisOptions, offerChoices, symbolEditChoices, type SymbolEditCandidate } from './edit-candidates';
+import { analysisOptions, offerChoices, symbolEditChoices, turnSpins, type SymbolEditCandidate } from './edit-candidates';
 
 const START_REEL = 'A1 A1 A1 G1 S1 S1';
 const FULL_REEL = 'A1 A1 A1 A1 G1 G1 G1 G1 S1 S1 S1 S1';
@@ -24,12 +24,25 @@ function atEdit(definition: RunDefinition): Run {
   return run;
 }
 
-describe('analysisOptions', () => {
-  it('lists every action in display order and uses the data grade values', () => {
-    expect(analysisOptions(M2_RUN)).toEqual({
-      grades: M2_RUN.grades,
+describe('analysisOptions and turnSpins (M2.5 spec 7.2)', () => {
+  it('lists every action in display order, uses the data grades and the effective max spins of a turn', () => {
+    expect(analysisOptions(startRun(M25_RUN))).toEqual({
+      grades: M25_RUN.grades,
       actionIds: [ACTION_ATTACK, ACTION_GUARD, ACTION_SHIELD_BASH],
+      spins: 3,
+      spinsPerTurnHardCap: RUN_RULES.spinsPerTurnHardCap,
     });
+    expect(analysisOptions(startRun(M2_RUN)).spins).toBe(1);
+  });
+
+  it('applies the run turn modifiers (item hook) through resolveTurnStats, clamped at the hard cap', () => {
+    const run = startRun(M25_RUN);
+    const withModifier = (spinsPerTurnAdd: number): Run => ({
+      ...run,
+      state: { ...run.state, modifiers: [{ id: 'test_item', spinsPerTurnAdd }] },
+    });
+    expect(turnSpins(withModifier(1))).toBe(4);
+    expect(turnSpins(withModifier(9))).toBe(RUN_RULES.spinsPerTurnHardCap);
   });
 });
 
@@ -52,9 +65,15 @@ describe('offerChoices', () => {
     const expected = previewEdit(
       run.state.reels,
       { kind: 'add', reelIndex: 1, symbol: { actionId: ACTION_GUARD, grade: 2 } },
-      analysisOptions(M2_RUN),
+      analysisOptions(run),
     );
     expect(guardToReel1?.preview).toEqual(expected);
+  });
+
+  it('previews the M2.5 run at turn level (3 spins pooled)', () => {
+    const preview = offerChoices(atReward(M25_RUN))[0]?.candidates[0]?.preview;
+    expect(preview?.before.empty).toBeCloseTo(0.0903, 4);
+    expect(preview?.before.actions[ACTION_ATTACK]?.fire3plus).toBeCloseTo(0.1802, 4);
   });
 
   it('disables a full reel (engine canAddToReel) and keeps the others', () => {

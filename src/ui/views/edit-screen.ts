@@ -1,7 +1,7 @@
 import { editOptions, type Run } from '../../core';
 import { createElement } from '../dom';
-import { symbolEditChoices, type SymbolEditCandidate } from '../edit-candidates';
-import { formatReelTitle, formatSymbol } from '../reel-format';
+import { symbolEditChoices, turnSpins, type SymbolEditCandidate } from '../edit-candidates';
+import { formatReelTitle, formatSymbol, formatTurnBasis } from '../reel-format';
 import { LABELS } from '../ui-config';
 import { createCandidateCard } from './candidate-card';
 import { createReelPanel } from './reel-panel';
@@ -38,6 +38,7 @@ export class EditScreen implements ScreenView {
     intro.append(
       createElement('h2', 'panel__title', LABELS.editTitle),
       createElement('p', 'screen__hint', LABELS.editHint),
+      createElement('p', 'screen__hint', formatTurnBasis(turnSpins(run))),
       passButton,
     );
     this.element.replaceChildren(

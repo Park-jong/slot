@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { ACTIONS, createStartingBattleConfig } from '../data';
+import { createM2BattleConfig, M2_ACTIONS } from '../data';
 import { createBattle } from './battle';
 import { activeEffects, executableEffects } from './effects';
 import type { ActionDef, EffectDef } from './types';
 
 function action(id: string): ActionDef {
-  const found = ACTIONS.find((candidate) => candidate.id === id);
+  const found = M2_ACTIONS.find((candidate) => candidate.id === id);
   if (!found) throw new Error(`missing action ${id}`);
   return found;
 }
@@ -49,7 +49,7 @@ describe('M2 example 6: activeEffects keeps only the highest satisfied stage per
   });
 
   it('data error: two reflect entries at minLines 2 -> createBattle throws', () => {
-    const duplicated = ACTIONS.map((candidate) =>
+    const duplicated = M2_ACTIONS.map((candidate) =>
       candidate.id === 'guard'
         ? {
             ...candidate,
@@ -57,7 +57,7 @@ describe('M2 example 6: activeEffects keeps only the highest satisfied stage per
           }
         : candidate,
     );
-    expect(() => createBattle({ ...createStartingBattleConfig('slime'), actions: duplicated })).toThrow(
+    expect(() => createBattle({ ...createM2BattleConfig('slime'), actions: duplicated })).toThrow(
       /effect reflect at minLines 2 twice/,
     );
   });

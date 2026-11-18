@@ -1,5 +1,5 @@
 import { createElement } from '../dom';
-import type { TurnLog } from '../format';
+import type { LogSection, TurnLog } from '../format';
 import { LABELS } from '../ui-config';
 
 /** Combat log, newest turn on top. Only renders already formatted text. */
@@ -19,13 +19,16 @@ export class LogView {
   addTurn(turn: TurnLog): void {
     const entry = createElement('li', 'log__entry');
     entry.append(createElement('h3', 'log__title', turn.title));
-    for (const section of turn.sections) {
-      const block = createElement('div', 'log__section');
-      const items = createElement('ul', 'log__items');
-      items.append(...section.items.map((item) => createElement('li', undefined, item)));
-      block.append(createElement('span', 'log__label', section.label), items);
-      entry.append(block);
-    }
+    entry.append(...turn.sections.map(createLogSection));
     this.list.prepend(entry);
   }
+}
+
+/** A labelled list of log lines; shared by the log and the settlement panel. */
+export function createLogSection(section: LogSection): HTMLElement {
+  const block = createElement('div', 'log__section');
+  const items = createElement('ul', 'log__items');
+  items.append(...section.items.map((item) => createElement('li', undefined, item)));
+  block.append(createElement('span', 'log__label', section.label), items);
+  return block;
 }

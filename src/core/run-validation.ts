@@ -34,9 +34,9 @@ function validateStartingReels({ character, rules }: RunDefinition): void {
 }
 
 /** Every stage enemy (boss included) must be a valid battle against the starting reels. */
-function validateStages({ stages, character, actions, grades }: RunDefinition): void {
+function validateStages({ stages, character, actions, grades, rules }: RunDefinition): void {
   for (const enemy of stages) {
-    validateBattleConfig({ character, enemy, reels: character.startingReels, actions, grades });
+    validateBattleConfig({ character, enemy, reels: character.startingReels, actions, grades, turnRules: rules });
   }
 }
 

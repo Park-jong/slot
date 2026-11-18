@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { ACTIONS, createStartingBattleConfig, GRADES } from '../data';
+import { createM2BattleConfig, GRADES, M2_ACTIONS } from '../data';
 import { createBattle, createBattleFromState, resolveTurn, type Battle } from './battle';
 import { judge } from './judge';
 import { evaluateAction } from './outcome';
 import { boardFromRows, EMPTY_BOARD } from '../test-support/test-helpers';
 import type { BattleConfig, BattleState, EnemyDef } from './types';
 
-const SLIME = createStartingBattleConfig('slime');
+const SLIME = createM2BattleConfig('slime');
 
 const MAX_LINES = 8;
 const MIN_LINE_GRADE_SUM = 3;
@@ -18,7 +18,7 @@ function stateOf(config: BattleConfig, overrides: Partial<BattleState>): Battle 
 }
 
 describe('spec example 5 feasibility with M1 data (turn 4 needs 3 damage, no guard gained)', () => {
-  const allOutcomes = ACTIONS.flatMap((action) =>
+  const allOutcomes = M2_ACTIONS.flatMap((action) =>
     Array.from({ length: MAX_LINES }, (_, index) => index + 1).flatMap((lineCount) => {
       const sums = Array.from(
         { length: MAX_LINE_GRADE_SUM * lineCount - MIN_LINE_GRADE_SUM * lineCount + 1 },

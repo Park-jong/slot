@@ -26,8 +26,9 @@ export class App {
     showSeed = false,
   ) {
     this.header = new RunHeaderView(showSeed);
-    this.battleScreen = new BattleScreen(reelTiming, {
+    this.battleScreen = new BattleScreen(reelTiming, controller, {
       onSpin: () => this.spin(),
+      onStop: () => this.stop(),
       onContinue: () => this.showCurrentScreen(),
     });
     this.screens = {
@@ -83,19 +84,32 @@ export class App {
     this.showCurrentScreen();
   }
 
+  /** One spin; reaching the max spins settles the turn without further input (U9). */
   private spin(): void {
     if (this.battleScreen.isBusy) {
       return;
     }
-    const result = this.controller.spin();
-    if (!result) {
+    const step = this.controller.spin();
+    if (!step) {
       return;
     }
-    this.battleScreen.playTurn(result.report, () => this.finishTurn(result));
+    const { result } = step;
+    this.battleScreen.playSpin(step.spin, () => (result ? this.finishTurn(result) : this.battleScreen.showSpinning()));
   }
 
-  /** The turn is already resolved; run outcome and the way forward are revealed once the reels stopped. */
+  private stop(): void {
+    if (this.battleScreen.isBusy) {
+      return;
+    }
+    const result = this.controller.stop();
+    if (result) {
+      this.finishTurn(result);
+    }
+  }
+
+  /** The turn is already resolved; the settlement, run outcome and the way forward are revealed together. */
   private finishTurn(result: RunTurnResult): void {
+    this.battleScreen.showSettlement(result.report);
     const { definition } = this.controller.run;
     const log = formatRunStepLog(result.events, definition);
     if (log) {

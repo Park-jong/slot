@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ACTIONS, createStartingBattleConfig, STANDARD_TIERS } from '../data';
+import { createM2BattleConfig, M2_ACTIONS, M2_TIERS } from '../data';
 import {
   createBattle,
   createBattleFromState,
@@ -13,6 +13,7 @@ import { createRng } from './rng';
 import { spin } from './spin';
 import {
   boardFromRows,
+  deepFreeze,
   EMPTY_BOARD,
   SINGLE_ATTACK_BOARD,
   SINGLE_GUARD_BOARD,
@@ -20,8 +21,9 @@ import {
 } from '../test-support/test-helpers';
 import type { ActionDef, BattleConfig, BattleState, Board } from './types';
 
-const SLIME = createStartingBattleConfig('slime');
-const GOBLIN = createStartingBattleConfig('goblin');
+// M1/M2 regression: M2 numbers with one spin per turn, so resolveTurn is exactly the M2 turn (M2.5 spec 6.2).
+const SLIME = createM2BattleConfig('slime');
+const GOBLIN = createM2BattleConfig('goblin');
 
 const EXAMPLE_3_BOARD = boardFromRows(['G1 S1 A1', 'G1 S2 A1', 'G2 S1 A1']);
 const FULL_ATTACK_BOARD = boardFromRows(['A1 A1 A1', 'A1 A1 A1', 'A1 A1 A1']);
@@ -37,14 +39,6 @@ function playBoards(battle: Battle, boards: readonly Board[]) {
     current = result.battle;
     return result;
   });
-}
-
-function deepFreeze<T>(value: T): T {
-  if (value && typeof value === 'object') {
-    Object.values(value).forEach(deepFreeze);
-    Object.freeze(value);
-  }
-  return value;
 }
 
 describe('createBattle', () => {
@@ -86,7 +80,7 @@ describe('createBattle', () => {
   });
 
   it('rejects non-deferred effects the engine does not implement', () => {
-    const actions = ACTIONS.map((action) =>
+    const actions = M2_ACTIONS.map((action) =>
       action.id === 'guard'
         ? { ...action, effects: action.effects.map((effect) => ({ ...effect, deferred: false })) }
         : action,
@@ -177,10 +171,10 @@ describe('spec example 5: enemy guard lifetime on slime turns 1-4', () => {
     id: TEST_ACTION_POKE,
     name: 'poke',
     basePower: { damage: 1, guard: 0 },
-    tiers: STANDARD_TIERS,
+    tiers: M2_TIERS,
     effects: [],
   };
-  const config: BattleConfig = { ...SLIME, actions: [...ACTIONS, POKE] };
+  const config: BattleConfig = { ...SLIME, actions: [...M2_ACTIONS, POKE] };
   const pokeBoard = boardFromRows(['P1 P1 P1', 'G1 G1 A1', 'A1 A1 G1']);
   const results = playBoards(createBattle(config), [EMPTY_BOARD, EMPTY_BOARD, EMPTY_BOARD, pokeBoard]);
 
@@ -316,7 +310,7 @@ describe('turn edge cases', () => {
     const start = stateOf(SLIME, { enemyGuard: 5 });
     const { battle, report } = resolveTurn(start, FULL_ATTACK_BOARD);
     expect(report.outcomes).toEqual([
-      { actionId: 'attack', lineCount: 8, gradeSumTotal: 24, multiplierNum: 6, damage: 144, guard: 0, ignoreGuard: true },
+      { actionId: 'attack', lineCount: 8, gradeSumTotal: 24, multiplierNum: 6, damage: 144, guard: 0, ignoreGuard: true, focusPct: 0, damagePct: 0 },
     ]);
     expect(battle.state).toMatchObject({ enemyHp: -120, enemyGuard: 5, phase: 'victory' });
   });
@@ -347,7 +341,7 @@ describe('playTurn', () => {
   });
 
   it('never mutates the input battle', () => {
-    const battle = deepFreeze(createBattle(createStartingBattleConfig('slime')));
+    const battle = deepFreeze(createBattle(SLIME));
     const snapshot = structuredClone(battle.state);
     const rng = createRng(5);
     let current = battle;

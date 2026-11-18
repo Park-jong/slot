@@ -2,7 +2,11 @@
 import { validateEffects } from './effects';
 import { isKnownIntentType, MIN_CHARGE_MULTIPLIER } from './enemy';
 import { GRID_SIZE } from './lines';
-import type { ActionDef, BattleConfig, CharacterDef, EnemyDef, GradeTable, Reel } from './types';
+import { validateTurnModifiers, validateTurnRules } from './turn-stats';
+import type { ActionDef, BattleConfig, Board, CharacterDef, EnemyDef, GradeTable, Reel, TierDef, TurnRules } from './types';
+
+/** Tier tables start at one line (a single fired line must have a tier). */
+const FIRST_TIER_LINE_COUNT = 1;
 
 export function validateBattleConfig(config: BattleConfig): void {
   validateEnemy(config.enemy);
@@ -10,6 +14,9 @@ export function validateBattleConfig(config: BattleConfig): void {
   validateCharacter(config.character, config.actions);
   validateReels(config.reels, config.actions, config.grades);
   validateStartingHp(config);
+  validateTurnRules(config.turnRules);
+  validateSpinsPerTurn(config.character, config.turnRules);
+  validateTurnModifiers(config.modifiers ?? []);
 }
 
 export function validateEnemy(enemy: EnemyDef): void {
@@ -39,7 +46,29 @@ function validateAction(action: ActionDef): void {
   if (action.tiers.length === 0) {
     throw new Error(`config: action ${action.id} has no tiers`);
   }
+  validateTiers(action.id, action.tiers);
   validateEffects(action);
+}
+
+/** Line counts are integers, unique, and the smallest is 1 (M2.5 spec 2.4, AC-6.4). */
+function validateTiers(actionId: string, tiers: readonly TierDef[]): void {
+  const counts = tiers.map((tier) => tier.lineCount);
+  if (counts.some((count) => !Number.isInteger(count)) || new Set(counts).size !== counts.length) {
+    throw new Error(`config: action ${actionId} tier line counts ${counts.join(', ')} must be unique integers`);
+  }
+  if (Math.min(...counts) !== FIRST_TIER_LINE_COUNT) {
+    throw new Error(`config: action ${actionId} tiers must start at ${FIRST_TIER_LINE_COUNT} line`);
+  }
+}
+
+function validateSpinsPerTurn(character: CharacterDef, rules: TurnRules): void {
+  const { spinsPerTurn } = character;
+  const { spinsPerTurnMin, spinsPerTurnHardCap } = rules;
+  if (!Number.isInteger(spinsPerTurn) || spinsPerTurn < spinsPerTurnMin || spinsPerTurn > spinsPerTurnHardCap) {
+    throw new Error(
+      `config: character ${character.id} spinsPerTurn ${spinsPerTurn} must be an integer in ${spinsPerTurnMin}..${spinsPerTurnHardCap}`,
+    );
+  }
 }
 
 function validateCharacter(character: CharacterDef, actions: readonly ActionDef[]): void {
@@ -59,6 +88,22 @@ function validateReels(reels: readonly Reel[], actions: readonly ActionDef[], gr
     if (!grades[symbol.grade]) {
       throw new Error(`config: reel symbol uses unknown grade ${symbol.grade}`);
     }
+  }
+}
+
+/** A submitted board must have the spin() shape and use only the config's actions and grades. */
+export function validateBoard(board: Board, config: BattleConfig, caller: string): void {
+  if (board.length !== GRID_SIZE || board.some((column) => column.length !== GRID_SIZE)) {
+    throw new Error(`${caller}: board must be ${GRID_SIZE} reels x ${GRID_SIZE} rows`);
+  }
+  const symbols = board.flat();
+  const unknown = [...new Set(symbols.map((symbol) => symbol.actionId))].filter((id) => !hasAction(config.actions, id));
+  if (unknown.length > 0) {
+    throw new Error(`${caller}: board contains unknown actions ${unknown.join(', ')}`);
+  }
+  const badGrade = symbols.find((symbol) => !config.grades[symbol.grade]);
+  if (badGrade) {
+    throw new Error(`${caller}: board uses unknown grade ${badGrade.grade} on action ${badGrade.actionId}`);
   }
 }
 

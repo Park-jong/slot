@@ -3,6 +3,9 @@
 // Only the policy (which offer / which edit) lives here; every rule (spin, judge, battle, heal, offers,
 // edit limits) is the real engine. The policy's reel scorer is a port of design's evalReels: a fixed
 // common-random-number sample of spins scored as expected damage + GUARD_WEIGHT * expected guard.
+// M2.5 note: this file simulates the M2 rules only (default M2_RUN, spinsPerTurn 1, playRunTurn = one spin
+// and stop). The M2.5 multi-spin simulator (full-turn scoring, smart/max/once stop policies via spinRun/stopRun,
+// M25_RUN) is src/test-support/multispin-balance-sim.ts (m25-multispin-spec 8.6, REQ-009).
 import { GRID_SIZE, LINES } from '../core/lines';
 import { nextGrade } from '../core/reel-edit';
 import { createRng, drawUnit, type Rng } from '../core/rng';

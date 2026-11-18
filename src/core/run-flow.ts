@@ -5,7 +5,7 @@ import type { RunEvent } from './events';
 import { drawOffers } from './offers';
 import { allReelsFull, anyDeletable, anyEnhanceable } from './reel-edit';
 import type { Rng } from './rng';
-import type { HealAmount, Reel, ReelSymbol, RunDefinition } from './types';
+import type { HealAmount, Reel, ReelSymbol, RunDefinition, TurnModifier, TurnRules } from './types';
 
 export type RunPhase = 'battle' | 'reward_add' | 'reward_edit' | 'victory' | 'defeat';
 
@@ -25,6 +25,8 @@ export interface RunState {
   readonly offers: readonly ReelSymbol[] | null;
   /** Current battle; the final battle on victory/defeat; null during reward phases. */
   readonly battle: Battle | null;
+  /** Turn modifiers (items) copied into every new battle; always empty in M2.5 (M4 hook). */
+  readonly modifiers: readonly TurnModifier[];
 }
 
 export interface Transition {
@@ -54,8 +56,14 @@ export function beginStage(definition: RunDefinition, state: RunState, stageInde
     actions: definition.actions,
     grades: definition.grades,
     startingHp: state.playerHp,
+    turnRules: turnRulesOf(definition.rules),
+    modifiers: state.modifiers,
   });
   return { ...state, phase: 'battle', stageIndex, offers: null, battle };
+}
+
+function turnRulesOf({ focusPercentPerUnusedSpin, spinsPerTurnMin, spinsPerTurnHardCap }: TurnRules): TurnRules {
+  return { focusPercentPerUnusedSpin, spinsPerTurnMin, spinsPerTurnHardCap };
 }
 
 /** Applies a resolved turn: keeps fighting, or moves to defeat / victory / heal + reward_add. */

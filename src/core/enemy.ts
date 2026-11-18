@@ -23,6 +23,8 @@ export interface IntentPreview {
 interface IntentKind {
   /** Whether a pending charge multiplies this intent's value (and is consumed by it). */
   readonly usesCharge: boolean;
+  /** Whether performing this intent damages the player (its preview value is the incoming damage). */
+  readonly hitsPlayer: boolean;
   readonly act: (state: BattleState, baseValue: number) => StepResult;
 }
 
@@ -34,6 +36,7 @@ export function isKnownIntentType(type: string): type is IntentType {
 const INTENT_KINDS: Readonly<Record<IntentType, IntentKind>> = {
   attack: {
     usesCharge: true,
+    hitsPlayer: true,
     act: (state, baseValue) => {
       const value = baseValue * state.enemyChargeMult;
       const absorbed = Math.min(state.playerGuard, value);
@@ -59,6 +62,7 @@ const INTENT_KINDS: Readonly<Record<IntentType, IntentKind>> = {
   // Guard leaves a pending charge untouched: it carries over to the next attack.
   guard: {
     usesCharge: false,
+    hitsPlayer: false,
     act: (state, value) => ({
       state: { ...state, enemyGuard: value },
       events: [{ type: 'enemy_guarded', value, enemyGuard: value }],
@@ -67,6 +71,7 @@ const INTENT_KINDS: Readonly<Record<IntentType, IntentKind>> = {
   // Overwrites (never stacks) the pending multiplier.
   charge: {
     usesCharge: false,
+    hitsPlayer: false,
     act: (state, multiplier) => ({
       state: { ...state, enemyChargeMult: multiplier },
       events: [{ type: 'enemy_charged', multiplier }],
@@ -114,4 +119,10 @@ function previewOf(intent: Intent, chargeMult: number): IntentPreview {
     baseValue: intent.value,
     charged,
   };
+}
+
+/** Effective damage the current intent deals to the player this turn (charge applied); 0 if it does not attack. */
+export function incomingDamage(state: BattleState, enemy: EnemyDef): number {
+  const preview = intentPreview(state, enemy);
+  return INTENT_KINDS[preview.type].hitsPlayer ? preview.value : 0;
 }

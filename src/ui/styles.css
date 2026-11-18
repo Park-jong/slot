@@ -28,6 +28,7 @@
   --reel-gap: 8px;
   --cell-size: 96px;
   --cell-size-narrow: 72px;
+  --cell-size-mini: 28px;
   --reel-spin-duration: 120ms;
   --hp-transition: 300ms;
 
@@ -350,6 +351,189 @@ body {
 .intent[data-intent='charge'] .intent__text,
 .intent--charged .intent__text {
   color: var(--color-intent-charge);
+}
+
+/* Multi-spin turn (M2.5 spec 7.1): counter, buttons, earlier spins, pooled status and the stop preview. */
+.battle-center {
+  display: grid;
+  gap: var(--gap);
+}
+
+.board-view {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.spin-counter {
+  margin: 0;
+  font-weight: bold;
+  color: var(--color-accent);
+}
+
+.spin-counter[hidden],
+.spin-controls [hidden],
+.spin-history[hidden] {
+  display: none;
+}
+
+.spin-controls {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+
+.spin-controls .spin-button {
+  flex: 1 1 0;
+  padding-inline: 8px;
+}
+
+.spin-button--stop {
+  background: var(--color-guard);
+  color: var(--color-accent-text);
+  font-weight: bold;
+}
+
+.spin-history {
+  width: 100%;
+}
+
+.spin-history__title {
+  margin: 0 0 6px;
+  font-size: 0.85rem;
+  color: var(--color-muted);
+}
+
+.spin-history__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.spin-history__spin {
+  display: grid;
+  gap: 4px;
+  justify-items: center;
+  max-width: calc(var(--cell-size-mini) * 5);
+}
+
+.spin-history__caption {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--color-muted);
+  text-align: center;
+}
+
+.board--mini,
+.board--mini .reel {
+  gap: 2px;
+}
+
+.board--mini .cell {
+  width: var(--cell-size-mini);
+  height: var(--cell-size-mini);
+  border-width: 2px;
+  border-radius: 4px;
+}
+
+.board--mini .cell--fired {
+  outline-width: 2px;
+  outline-offset: 0;
+  box-shadow: none;
+}
+
+.board--mini .cell__icon {
+  font-size: 0.9rem;
+}
+
+.board--mini .cell__label,
+.board--mini .cell__grade {
+  display: none;
+}
+
+.turn-panel__body {
+  display: grid;
+  gap: 10px;
+}
+
+.turn-panel__hint,
+.turn-panel__estimate {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.9rem;
+}
+
+.pooled {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.pooled__action {
+  display: grid;
+  gap: 2px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: var(--color-bg);
+}
+
+.pooled__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.pooled__title {
+  font-weight: bold;
+}
+
+.pooled__detail {
+  color: var(--color-muted);
+  font-size: 0.85rem;
+}
+
+.pooled__value {
+  margin-left: auto;
+  color: var(--color-accent);
+  font-weight: bold;
+}
+
+.pooled__hint {
+  font-size: 0.8rem;
+  color: var(--color-muted);
+}
+
+.pooled__none {
+  color: var(--color-muted);
+}
+
+.stop-preview {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 2px solid var(--color-accent);
+}
+
+.stop-preview--lethal {
+  border-color: var(--color-victory);
+}
+
+.stop-preview--empty {
+  border-color: var(--color-panel-border);
+}
+
+.stop-preview__line {
+  margin: 0;
+}
+
+.stop-preview__line:first-child {
+  font-weight: bold;
 }
 
 /* Run header: progress, stage track, carried HP, latest outcome. */

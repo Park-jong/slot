@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { createStartingBattleConfig } from '../data';
+import { createM2BattleConfig } from '../data';
 import { EMPTY_BOARD, SINGLE_ATTACK_BOARD, SINGLE_GUARD_BOARD } from '../test-support/test-helpers';
 import { createBattle, createBattleFromState, currentIntentPreview, resolveTurn, type Battle } from './battle';
 import type { BattleConfig, Board, EnemyDef } from './types';
 
-const OGRE = createStartingBattleConfig('ogre');
+const OGRE = createM2BattleConfig('ogre');
 
 function playBoards(battle: Battle, boards: readonly Board[]) {
   let current = battle;

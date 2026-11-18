@@ -1,23 +1,30 @@
-// Holds the live run session: the Run value, its single seeded rng (M2 spec 1.4: one rng per run) and the
-// events of the last step. No DOM, so it is unit-testable. Every rule decision is the engine's.
+// Holds the live run session: the Run value, its single seeded rng (M2 spec 1.4, M2.5 spec 8.3: one rng per
+// run, consumed only by the spins actually taken) and the outcome of the last step. No DOM, so it is
+// unit-testable. Every rule decision is the engine's.
 import {
   chooseOffer,
   createRng,
   deleteSymbol,
   enhanceSymbol,
   passEdit,
-  playRunTurn,
   skipOffer,
+  spinRun,
   startRun,
+  stopRun,
+  type Battle,
   type Rng,
   type Run,
   type RunDefinition,
   type RunEvent,
   type RunPhase,
+  type RunSpinResult,
   type RunStepResult,
   type RunTurnResult,
+  type TurnReport,
 } from '../core';
-import { M2_RUN } from '../data';
+import { M25_RUN } from '../data';
+import { turnProgress, type EstimateSettings, type TurnProgress } from './turn-progress';
+import { CONTINUE_ESTIMATE } from './ui-config';
 
 export type SeedSource = () => number;
 
@@ -41,14 +48,22 @@ interface Session {
   readonly rng: Rng;
   run: Run;
   lastEvents: readonly RunEvent[];
+  lastTurn: TurnReport | null;
+}
+
+interface CachedProgress {
+  readonly run: Run;
+  readonly progress: TurnProgress;
 }
 
 export class RunController {
   private session: Session;
+  private cachedProgress: CachedProgress | null = null;
 
   constructor(
     private readonly nextSeed: SeedSource,
-    private readonly definition: RunDefinition = M2_RUN,
+    private readonly definition: RunDefinition = M25_RUN,
+    private readonly estimate: EstimateSettings | null = CONTINUE_ESTIMATE,
   ) {
     this.session = this.createSession();
   }
@@ -61,13 +76,33 @@ export class RunController {
     return this.session.seed;
   }
 
-  /** Run events of the most recent step (spin, reward or edit choice); empty right after a (re)start. */
+  /** Run events of the most recent step (a settled turn, reward or edit choice); empty after a mere spin. */
   get lastEvents(): readonly RunEvent[] {
     return this.session.lastEvents;
   }
 
+  /** Report of the most recently settled turn of this run; null until the first turn settles. */
+  get lastTurn(): TurnReport | null {
+    return this.session.lastTurn;
+  }
+
   get screen(): Screen {
     return screenForPhase(this.session.run.state.phase);
+  }
+
+  /** The battle being fought; null outside the battle phase. */
+  get battle(): Battle | null {
+    const { phase, battle } = this.session.run.state;
+    return phase === 'battle' ? battle : null;
+  }
+
+  /** Spin phase of the current turn with the stop preview while spinning (computed once per run value). */
+  get turn(): TurnProgress {
+    const { run } = this.session;
+    if (this.cachedProgress?.run !== run) {
+      this.cachedProgress = { run, progress: turnProgress(this.battle, this.estimate) };
+    }
+    return this.cachedProgress.progress;
   }
 
   /** Live HP: the battle's value while fighting (and on defeat/victory), otherwise the carried value. */
@@ -81,13 +116,28 @@ export class RunController {
     this.session = this.createSession();
   }
 
-  /** Plays one battle turn. Returns null outside the battle phase (input lock). */
-  spin(): RunTurnResult | null {
-    if (this.session.run.state.phase !== 'battle') {
+  /**
+   * Spins once (spin 1 starts the turn). Reaching the max spins settles the turn in the same call (`result`).
+   * Returns null when no spin is possible (input lock outside an ongoing battle).
+   */
+  spin(): RunSpinResult | null {
+    if (this.turn.kind === 'over') {
       return null;
     }
-    const result = playRunTurn(this.session.run, this.session.rng);
-    this.apply(result);
+    const step = this.apply(spinRun(this.session.run, this.session.rng));
+    if (step.result) {
+      this.session.lastTurn = step.result.report;
+    }
+    return step;
+  }
+
+  /** Stops spinning and settles the turn. Returns null unless at least one spin was taken this turn. */
+  stop(): RunTurnResult | null {
+    if (this.turn.kind !== 'spinning') {
+      return null;
+    }
+    const result = this.apply(stopRun(this.session.run, this.session.rng));
+    this.session.lastTurn = result.report;
     return result;
   }
 
@@ -119,6 +169,6 @@ export class RunController {
 
   private createSession(): Session {
     const seed = this.nextSeed();
-    return { seed, rng: createRng(seed), run: startRun(this.definition), lastEvents: [] };
+    return { seed, rng: createRng(seed), run: startRun(this.definition), lastEvents: [], lastTurn: null };
   }
 }

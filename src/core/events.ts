@@ -1,3 +1,4 @@
+import type { LineId } from './lines';
 import type { ActionId, BattleState, ReelSymbol } from './types';
 
 /** Ordered log of what happened during a turn; the UI can animate or print these one by one. */
@@ -35,6 +36,47 @@ export type BattleEvent =
   | { readonly type: 'enemy_charged'; readonly multiplier: number }
   | { readonly type: 'victory' }
   | { readonly type: 'defeat' };
+
+/** Why the spin phase of a turn ended (M2.5 spec 2.5). */
+export type StopReason = 'player_stop' | 'max_reached';
+
+/** A fired line as reported by the `spun` event. */
+export interface SpunLine {
+  readonly lineId: LineId;
+  readonly actionId: ActionId;
+  readonly gradeSum: number;
+}
+
+/**
+ * Spin-phase events of a multi-spin turn (M2.5 spec 2.5). Kept apart from BattleEvent so code that handles
+ * only the resolution log (BattleEvent, as in M1/M2) stays valid; TurnEvent is the full turn log.
+ */
+export type SpinPhaseEvent =
+  | {
+      readonly type: 'turn_started';
+      readonly turn: number;
+      readonly maxSpins: number;
+      readonly focusPctPerUnused: number;
+      readonly damagePct: number;
+    }
+  | {
+      readonly type: 'spun';
+      readonly spinIndex: number;
+      readonly maxSpins: number;
+      readonly firedLines: readonly SpunLine[];
+      /** No line fired in this spin. */
+      readonly empty: boolean;
+    }
+  | {
+      readonly type: 'spin_phase_ended';
+      readonly spinsUsed: number;
+      readonly unusedSpins: number;
+      readonly focusPct: number;
+      readonly reason: StopReason;
+    };
+
+/** Full turn log order: turn_started, player_guard_expired?, spun..., spin_phase_ended, resolution events. */
+export type TurnEvent = SpinPhaseEvent | BattleEvent;
 
 /** Result of one pure battle step: the new state plus the events it produced, in order. */
 export interface StepResult {

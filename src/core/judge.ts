@@ -21,12 +21,41 @@ export interface JudgeResult {
   readonly byAction: Readonly<Record<ActionId, ActionJudgement>>;
 }
 
+/** A fired line of one spin within a turn. */
+export interface PooledFiredLine extends FiredLine {
+  /** 1-based spin the line fired in. */
+  readonly spinIndex: number;
+}
+
+/**
+ * Lines of every spin of a turn pooled per action (M2.5 spec 3.1): the same line id firing in two spins
+ * counts twice. Same shape as JudgeResult, so it can stand in for a single-board judgement.
+ */
+export interface PooledJudgement extends JudgeResult {
+  /** Spin order, then the fixed line order within a spin. */
+  readonly firedLines: readonly PooledFiredLine[];
+}
+
+/** One judged spin; spin records of a turn satisfy it. */
+export interface IndexedJudgement {
+  readonly index: number;
+  readonly judgement: JudgeResult;
+}
+
 /** Pure line evaluation (spec 2.3). Uses no randomness; grades only matter for the sums. */
 export function judge(board: Board, grades: GradeTable): JudgeResult {
   const firedLines = LINES.flatMap((line) => {
     const fired = evaluateLine(board, line, grades);
     return fired ? [fired] : [];
   });
+  return { firedLines, byAction: groupByAction(firedLines) };
+}
+
+/** Pools the fired lines of the given spins, in the given order. */
+export function poolJudgements(spins: readonly IndexedJudgement[]): PooledJudgement {
+  const firedLines = spins.flatMap(({ index, judgement }) =>
+    judgement.firedLines.map((line) => ({ ...line, spinIndex: index })),
+  );
   return { firedLines, byAction: groupByAction(firedLines) };
 }
 

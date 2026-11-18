@@ -73,6 +73,37 @@ export interface CharacterDef {
   readonly maxHp: number;
   readonly skillActionId: ActionId;
   readonly startingReels: readonly Reel[];
+  /** Base max spins per turn before modifiers (M2.5 spec 5.1); integer within the turn rules' bounds. */
+  readonly spinsPerTurn: number;
+}
+
+/** Turn-rule numbers shared by battles and runs (M2.5 spec 5.1). */
+export interface TurnRules {
+  /** Focus percent added to damage and guard per unused spin. */
+  readonly focusPercentPerUnusedSpin: number;
+  /** Clamp bounds of the effective max spins. */
+  readonly spinsPerTurnMin: number;
+  readonly spinsPerTurnHardCap: number;
+}
+
+/** Item-style turn modifier (data hook for M4). Every field is an optional integer; omitted = no change. */
+export interface TurnModifier {
+  readonly id: string;
+  /** Added to the base spins (may be negative). */
+  readonly spinsPerTurnAdd?: number;
+  /** Integer percent applied to the spins (100 = unchanged); several multiply with a floor at each step. */
+  readonly spinsPerTurnMulPct?: number;
+  /** Added to the damage percent only (never guard). */
+  readonly damagePct?: number;
+  /** Added to focusPercentPerUnusedSpin. */
+  readonly focusPctAdd?: number;
+}
+
+/** Turn numbers fixed at turn start (M2.5 spec 5.1); they never change during the spin phase. */
+export interface TurnStats {
+  readonly maxSpins: number;
+  readonly focusPctPerUnused: number;
+  readonly damagePct: number;
 }
 
 export interface BattleConfig {
@@ -85,6 +116,9 @@ export interface BattleConfig {
   readonly grades: GradeTable;
   /** Player HP at battle start (HP carried over in a run). Defaults to character.maxHp. */
   readonly startingHp?: number;
+  readonly turnRules: TurnRules;
+  /** Turn modifiers in force (items); omitted = none. Read at every turn start. */
+  readonly modifiers?: readonly TurnModifier[];
 }
 
 export type BattlePhase = 'ongoing' | 'victory' | 'defeat';
@@ -118,8 +152,8 @@ export interface GradeWeight {
   readonly weight: number;
 }
 
-/** Tunable run numbers (M2 spec sections 1-4). */
-export interface RunRules {
+/** Tunable run numbers (M2 spec sections 1-4) plus the M2.5 turn rules. */
+export interface RunRules extends TurnRules {
   /** Applied after every regular battle except the last one before the boss. */
   readonly healAfterBattle: HealAmount;
   /** Applied after the last regular battle instead of healAfterBattle. No heal after the boss. */

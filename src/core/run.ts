@@ -1,10 +1,21 @@
 // Public run API (M2 spec 1): 5 battles then the boss, with add rewards, the delete/enhance
 // opportunity and HP carry-over. Immutable like Battle: every call returns a new Run.
-// Randomness: use ONE rng per run (createRng(seed)) for every playRunTurn/resolveRunTurn call.
-// It is consumed in play order (9 per spin, then 3 for offers on a win), so seed + inputs replay a run.
+// Randomness: use ONE rng per run (createRng(seed)) for every spinRun/stopRun (or playRunTurn/resolveRunTurn)
+// call. It is consumed in play order (9 per spin actually taken, then 3 for offers in the call that settles a
+// win), so seed + inputs (spin/stop after every spin, reward choices) replay a run (M2.5 spec 8.3).
 // Calls in the wrong phase or with bad indices throw.
-import { resolveTurn, type Battle, type TurnReport } from './battle';
-import type { RunEvent } from './events';
+import {
+  playTurn,
+  resolveTurn,
+  spinOnce,
+  stopSpinning,
+  type Battle,
+  type SpinReport,
+  type StopPolicy,
+  type TurnReport,
+  type TurnResult,
+} from './battle';
+import type { RunEvent, TurnEvent } from './events';
 import {
   afterRewardAdd,
   beginStage,
@@ -27,7 +38,6 @@ import {
   enhanceSymbolAt,
 } from './reel-edit';
 import type { Rng } from './rng';
-import { spin } from './spin';
 import type { Board, ReelSymbol, RunDefinition } from './types';
 
 export type { RunPhase, RunState } from './run-flow';
@@ -48,6 +58,15 @@ export interface RunTurnResult extends RunStepResult {
   readonly report: TurnReport;
 }
 
+/** One spin of the run's current battle. */
+export interface RunSpinResult extends RunStepResult {
+  readonly spin: SpinReport;
+  /** Set when this spin reached the max and the turn resolved (with the run transition applied). */
+  readonly result: RunTurnResult | null;
+  /** Battle events of this call (spin phase, and the settlement when it resolved). */
+  readonly battleEvents: readonly TurnEvent[];
+}
+
 export interface EditOptions {
   readonly canDelete: boolean;
   readonly canEnhance: boolean;
@@ -64,20 +83,38 @@ export function startRun(definition: RunDefinition): Run {
     maxHp: definition.character.maxHp,
     offers: null,
     battle: null,
+    modifiers: [],
   };
   return { definition, state: beginStage(definition, initial, 0) };
 }
 
-/** Spins the current reels (9 rng calls) and resolves the turn; see resolveRunTurn. */
-export function playRunTurn(run: Run, rng: Rng): RunTurnResult {
-  return resolveRunTurn(run, spin(activeBattle(run).config.reels, rng), rng);
+/**
+ * Spins the current battle once (9 rng calls). When the spin reaches the max, the turn resolves and the run
+ * moves on as after stopRun (a regular win draws the offers: 3 more rng calls).
+ */
+export function spinRun(run: Run, rng: Rng): RunSpinResult {
+  const step = spinOnce(activeBattle(run, 'spinRun'), rng);
+  const battleEvents = step.events;
+  if (!step.result) {
+    return { run: { definition: run.definition, state: { ...run.state, battle: step.battle } }, events: [], spin: step.spin, result: null, battleEvents };
+  }
+  const result = settledTurn(run, step.result, rng);
+  return { run: result.run, events: result.events, spin: step.spin, result, battleEvents };
 }
 
-/** Resolves a turn from a given board. On a regular win, rng draws the offers (3 calls). */
+/** Stops spinning and resolves the turn. On a regular win, rng draws the offers (3 calls). */
+export function stopRun(run: Run, rng: Rng): RunTurnResult {
+  return settledTurn(run, stopSpinning(activeBattle(run, 'stopRun')), rng);
+}
+
+/** A whole turn via playTurn (default: one spin, then stop); then the run transition. */
+export function playRunTurn(run: Run, rng: Rng, policy?: StopPolicy): RunTurnResult {
+  return settledTurn(run, playTurn(activeBattle(run, 'playRunTurn'), rng, policy), rng);
+}
+
+/** A whole turn from one board (spin once, then stop). On a regular win, rng draws the offers (3 calls). */
 export function resolveRunTurn(run: Run, board: Board, rng: Rng): RunTurnResult {
-  const { battle, report } = resolveTurn(activeBattle(run), board);
-  const settled = settleBattle(run.definition, run.state, battle, rng);
-  return { ...applied(run, settled), report };
+  return settledTurn(run, resolveTurn(activeBattle(run, 'resolveRunTurn'), board), rng);
 }
 
 /** reward_add: appends offers[offerIndex] to the end of reels[reelIndex]. */
@@ -158,12 +195,16 @@ export function editOptions(run: Run): EditOptions {
   };
 }
 
-function activeBattle(run: Run): Battle {
-  assertPhase(run, 'battle', 'run turn');
+function activeBattle(run: Run, caller: string): Battle {
+  assertPhase(run, 'battle', caller);
   if (!run.state.battle) {
     throw new Error('run: battle phase without a battle');
   }
   return run.state.battle;
+}
+
+function settledTurn(run: Run, { battle, report }: TurnResult, rng: Rng): RunTurnResult {
+  return { ...applied(run, settleBattle(run.definition, run.state, battle, rng)), report };
 }
 
 function toNextBattle(run: Run, reels: RunState['reels']): Transition {

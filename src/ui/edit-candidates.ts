@@ -1,5 +1,6 @@
-// Choices of the reward and edit screens with their exact previews (M2 spec 8 preview scope).
-// Availability comes only from the engine queries; numbers come only from the engine's reel analysis.
+// Choices of the reward and edit screens with their exact previews (M2 spec 8 preview scope, M2.5 spec 7.2:
+// per turn over the effective max spins). Availability comes only from the engine queries; numbers come only
+// from the engine's reel analysis.
 import {
   analyzeEdit,
   analyzeReels,
@@ -7,19 +8,34 @@ import {
   canDeleteFromReel,
   canEnhanceSymbol,
   reelComposition,
+  resolveTurnStats,
   type AnalyzeOptions,
   type ReelAnalysis,
   type ReelEdit,
   type ReelEditPreview,
   type ReelSymbol,
   type Run,
-  type RunDefinition,
 } from '../core';
 import { displayActionIds } from './reel-format';
 
-/** Every action is always listed, so an action that disappears shows as 0% instead of vanishing. */
-export function analysisOptions(definition: RunDefinition): AnalyzeOptions {
-  return { grades: definition.grades, actionIds: displayActionIds(definition.actions) };
+/** Effective max spins of the run's next turns: character base spins with the run's turn modifiers. */
+export function turnSpins(run: Run): number {
+  const { definition, state } = run;
+  return resolveTurnStats(definition.character.spinsPerTurn, definition.rules, state.modifiers).maxSpins;
+}
+
+/**
+ * Turn-level analysis (spins = effective max spins). Every action is always listed, so an action that
+ * disappears shows as 0% instead of vanishing.
+ */
+export function analysisOptions(run: Run): AnalyzeOptions {
+  const { definition } = run;
+  return {
+    grades: definition.grades,
+    actionIds: displayActionIds(definition.actions),
+    spins: turnSpins(run),
+    spinsPerTurnHardCap: definition.rules.spinsPerTurnHardCap,
+  };
 }
 
 export interface AddCandidate {
@@ -56,7 +72,7 @@ class EditPreviewer {
   private readonly before: ReelAnalysis;
 
   constructor(private readonly run: Run) {
-    this.options = analysisOptions(run.definition);
+    this.options = analysisOptions(run);
     this.before = analyzeReels(run.state.reels, this.options);
   }
 

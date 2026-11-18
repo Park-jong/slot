@@ -1,7 +1,7 @@
 import type { Run } from '../../core';
 import { createElement } from '../dom';
-import { offerChoices, type OfferChoice } from '../edit-candidates';
-import { formatReelTitle, formatSymbol, reelLabel } from '../reel-format';
+import { offerChoices, turnSpins, type OfferChoice } from '../edit-candidates';
+import { formatReelTitle, formatSymbol, formatTurnBasis, reelLabel } from '../reel-format';
 import { LABELS } from '../ui-config';
 import { createCandidateCard } from './candidate-card';
 import { createReelPanel } from './reel-panel';
@@ -26,6 +26,7 @@ export class RewardScreen implements ScreenView {
     intro.append(
       createElement('h2', 'panel__title', LABELS.rewardTitle),
       createElement('p', 'screen__hint', LABELS.rewardHint),
+      createElement('p', 'screen__hint', formatTurnBasis(turnSpins(run))),
       skipButton,
     );
     this.element.replaceChildren(

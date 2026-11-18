@@ -1,23 +1,29 @@
-// Exact per-turn reel statistics for the reel-edit screen (spec m2-run-spec section 8).
+// Exact per-turn reel statistics for the reel-edit screen (m2-run-spec section 8, m25-multispin-spec 8.5).
 // Pure and deterministic: no rng, no Monte Carlo. Line geometry comes from ./lines (single source).
+// A turn of k spins pools the lines of k independent spins, so its line-count distribution is the k-fold
+// convolution of one spin's joint distribution.
 import { GRID_SIZE, LINES } from './lines';
 import { nextGrade } from './reel-edit';
 import type { ActionId, GradeId, GradeTable, Reel, ReelSymbol } from './types';
 
 export interface ActionAnalysis {
-  /** P(at least one line of this action fires in a turn). */
+  /** P(at least one line of this action fires in a turn, pooled over its spins). */
   readonly fire: number;
-  /** P(two or more lines of this action fire). */
+  /** P(two or more pooled lines of this action). */
   readonly fire2plus: number;
-  /** Expected number of fired lines of this action per turn. */
+  /** P(three or more pooled lines: the last tier and the ignore_guard threshold in M2.5). */
+  readonly fire3plus: number;
+  /** Expected number of pooled lines of this action per turn. */
   readonly expectedLines: number;
   /** Mean grade value of this action's symbols over all reels; 0 when it has no symbols. */
   readonly avgGradeValue: number;
 }
 
 export interface ReelAnalysis {
-  /** P(no line fires). */
+  /** P(no line fires in any spin of the turn) = emptySpin ^ spins. */
   readonly empty: number;
+  /** P(no line fires in one spin), whatever options.spins is. */
+  readonly emptySpin: number;
   /** Key order: `options.actionIds` first, then actions by first appearance (reel 0 first, top to bottom). */
   readonly actions: Readonly<Record<ActionId, ActionAnalysis>>;
   readonly reelSizes: readonly number[];
@@ -28,6 +34,10 @@ export interface AnalyzeOptions {
   readonly grades: GradeTable;
   /** Actions always present in the result (fire 0 when absent from every reel), e.g. every action the UI lists. */
   readonly actionIds?: readonly ActionId[];
+  /** Spins pooled into one turn (positive integer, normally the effective max spins); default 1. */
+  readonly spins?: number;
+  /** Upper bound for spins (the run's spinsPerTurnHardCap, M2.5 spec 8.5); omitted = no bound. */
+  readonly spinsPerTurnHardCap?: number;
 }
 
 export interface ReelCompositionEntry {
@@ -47,6 +57,8 @@ export interface ReelEditPreview {
 }
 
 const MIN_LINES_FOR_FIRE2PLUS = 2;
+const MIN_LINES_FOR_FIRE3PLUS = 3;
+const DEFAULT_SPINS = 1;
 const NO_ACTION = -1;
 
 /** One reel's drawn column as action indices (row 0 first) and its integer weight (number of index tuples). */
@@ -55,11 +67,19 @@ interface ReelPattern {
   readonly weight: number;
 }
 
-interface Tally {
-  emptyWeight: number;
-  readonly fireWeight: number[];
-  readonly fire2plusWeight: number[];
-  readonly lineWeight: number[];
+/**
+ * Per-action line counts packed into one integer key: count of action a times base^a. base exceeds the
+ * largest pooled count of one action, so adding two keys adds the counts digit by digit (no carries).
+ */
+interface CountEncoding {
+  readonly base: number;
+  readonly placeValues: readonly number[];
+}
+
+/** Weights by count key; probability = weight / total (integer weights for one spin keep it exact). */
+interface LineCountDistribution {
+  readonly weights: ReadonlyMap<number, number>;
+  readonly total: number;
 }
 
 /**
@@ -69,6 +89,7 @@ interface Tally {
  */
 export function analyzeReels(reels: readonly Reel[], options: AnalyzeOptions): ReelAnalysis {
   validateReels(reels);
+  const spins = validSpins(options);
   const actionIds = collectActionIds(reels, options.actionIds ?? []);
   const indexOf = new Map(actionIds.map((id, index) => [id, index]));
   const patternsPerReel = reels.map((reel) => reelPatterns(reel, actionIds.length, indexOf));
@@ -78,17 +99,29 @@ export function analyzeReels(reels: readonly Reel[], options: AnalyzeOptions): R
     throw new Error(`analyzeReels: reels too large for exact analysis (sizes ${reels.map((r) => r.length).join(', ')})`);
   }
 
-  const tally = tallyBoards(patternsPerReel, actionIds.length);
+  const encoding = countEncoding(actionIds.length, spins);
+  const single: LineCountDistribution = { weights: spinWeights(patternsPerReel, encoding), total: totalWeight };
+  const turn = spins === DEFAULT_SPINS ? single : convolvePower(single, spins);
   const actions: Record<ActionId, ActionAnalysis> = {};
   actionIds.forEach((actionId, index) => {
     actions[actionId] = {
-      fire: (tally.fireWeight[index] ?? 0) / totalWeight,
-      fire2plus: (tally.fire2plusWeight[index] ?? 0) / totalWeight,
-      expectedLines: (tally.lineWeight[index] ?? 0) / totalWeight,
+      ...lineStats(turn, encoding, index),
       avgGradeValue: averageGradeValue(reels, actionId, options.grades),
     };
   });
-  return { empty: tally.emptyWeight / totalWeight, actions, reelSizes: reels.map((reel) => reel.length) };
+  return {
+    empty: probabilityOf(turn, 0),
+    emptySpin: probabilityOf(single, 0),
+    actions,
+    reelSizes: reels.map((reel) => reel.length),
+  };
+}
+
+function validSpins({ spins = DEFAULT_SPINS, spinsPerTurnHardCap = Number.POSITIVE_INFINITY }: AnalyzeOptions): number {
+  if (!Number.isInteger(spins) || spins < DEFAULT_SPINS || spins > spinsPerTurnHardCap) {
+    throw new Error(`analyzeReels: spins ${spins} must be an integer in ${DEFAULT_SPINS}..${spinsPerTurnHardCap}`);
+  }
+  return spins;
 }
 
 /** Distinct (action, grade) counts. Order: actions by first appearance in the reel, grades ascending within an action. */
@@ -216,39 +249,26 @@ function reelPatterns(reel: Reel, actionCount: number, indexOf: ReadonlyMap<Acti
 const LINE_CELLS = Int32Array.from(LINES.flatMap((line) => line.cells.map((cell) => cell.reel * GRID_SIZE + cell.row)));
 const LINE_COUNT = LINES.length;
 
+function countEncoding(actionCount: number, spins: number): CountEncoding {
+  const base = LINE_COUNT * spins + 1;
+  if (base ** actionCount > Number.MAX_SAFE_INTEGER) {
+    throw new Error(`analyzeReels: ${actionCount} actions x ${spins} spins is too large for exact analysis`);
+  }
+  return { base, placeValues: Array.from({ length: actionCount }, (_, action) => base ** action) };
+}
+
 // Hot path (up to 27^3 boards per call, 18 calls per 9-option preview): plain indexed loops over typed arrays.
-function tallyBoards(patternsPerReel: readonly (readonly ReelPattern[])[], actionCount: number): Tally {
-  const tally: Tally = {
-    emptyWeight: 0,
-    fireWeight: new Array<number>(actionCount).fill(0),
-    fire2plusWeight: new Array<number>(actionCount).fill(0),
-    lineWeight: new Array<number>(actionCount).fill(0),
-  };
+function spinWeights(patternsPerReel: readonly (readonly ReelPattern[])[], encoding: CountEncoding): Map<number, number> {
+  const weights = new Map<number, number>();
   const board = new Int32Array(GRID_SIZE * GRID_SIZE);
-  const lineCounts = new Int32Array(actionCount);
 
   const scoreBoard = (weight: number): void => {
-    lineCounts.fill(0);
-    let firedAny = false;
+    let key = 0;
     for (let line = 0; line < LINE_COUNT; line++) {
       const action = lineAction(board, line);
-      if (action === NO_ACTION) continue;
-      lineCounts[action] = (lineCounts[action] ?? 0) + 1;
-      firedAny = true;
+      if (action !== NO_ACTION) key += encoding.placeValues[action] ?? 0;
     }
-    if (!firedAny) {
-      tally.emptyWeight += weight;
-      return;
-    }
-    for (let action = 0; action < actionCount; action++) {
-      const lines = lineCounts[action] ?? 0;
-      if (lines === 0) continue;
-      tally.fireWeight[action] = (tally.fireWeight[action] ?? 0) + weight;
-      tally.lineWeight[action] = (tally.lineWeight[action] ?? 0) + weight * lines;
-      if (lines >= MIN_LINES_FOR_FIRE2PLUS) {
-        tally.fire2plusWeight[action] = (tally.fire2plusWeight[action] ?? 0) + weight;
-      }
-    }
+    weights.set(key, (weights.get(key) ?? 0) + weight);
   };
 
   const placeReel = (reelIndex: number, weight: number): void => {
@@ -265,7 +285,50 @@ function tallyBoards(patternsPerReel: readonly (readonly ReelPattern[])[], actio
     }
   };
   placeReel(0, 1);
-  return tally;
+  return weights;
+}
+
+/** k independent spins pooled: the k-fold convolution of the one-spin distribution, as probabilities. */
+function convolvePower(single: LineCountDistribution, spins: number): LineCountDistribution {
+  const unit = new Map([...single.weights].map(([key, weight]) => [key, weight / single.total]));
+  let turn: ReadonlyMap<number, number> = unit;
+  for (let spin = DEFAULT_SPINS; spin < spins; spin++) {
+    const next = new Map<number, number>();
+    for (const [turnKey, turnProbability] of turn) {
+      for (const [spinKey, spinProbability] of unit) {
+        const key = turnKey + spinKey;
+        next.set(key, (next.get(key) ?? 0) + turnProbability * spinProbability);
+      }
+    }
+    turn = next;
+  }
+  return { weights: turn, total: 1 };
+}
+
+function lineStats(
+  distribution: LineCountDistribution,
+  encoding: CountEncoding,
+  action: number,
+): Omit<ActionAnalysis, 'avgGradeValue'> {
+  const placeValue = encoding.placeValues[action] ?? 1;
+  let fire = 0;
+  let fire2plus = 0;
+  let fire3plus = 0;
+  let lines = 0;
+  for (const [key, weight] of distribution.weights) {
+    const count = Math.floor(key / placeValue) % encoding.base;
+    if (count === 0) continue;
+    fire += weight;
+    lines += weight * count;
+    if (count >= MIN_LINES_FOR_FIRE2PLUS) fire2plus += weight;
+    if (count >= MIN_LINES_FOR_FIRE3PLUS) fire3plus += weight;
+  }
+  const { total } = distribution;
+  return { fire: fire / total, fire2plus: fire2plus / total, fire3plus: fire3plus / total, expectedLines: lines / total };
+}
+
+function probabilityOf(distribution: LineCountDistribution, key: number): number {
+  return (distribution.weights.get(key) ?? 0) / distribution.total;
 }
 
 /** The action filling every cell of the line, or NO_ACTION. */

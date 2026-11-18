@@ -19,7 +19,10 @@ export function definitionWithReels(reelNotations: readonly string[]): RunDefini
   };
 }
 
-/** Replaces fields of the current battle state (run must be in the battle phase). */
+/**
+ * Replaces fields of the current battle state (run must be in the battle phase). The battle restarts at a
+ * fresh turn_start session (stats from the config), dropping any spin phase in progress.
+ */
 export function withBattleState(run: Run, overrides: Partial<BattleState>): Run {
   const battle = run.state.battle;
   if (run.state.phase !== 'battle' || !battle) {
